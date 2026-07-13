@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bench Notes</title>
+<meta name="theme-color" content="#1A1A1C">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #1A1A1C;
+    --panel: #232326;
+    --panel-raised: #2B2B2F;
+    --tag: #E7E1D2;
+    --orange: #E85D25;
+    --orange-dim: #B8461A;
+    --brass: #C9A227;
+    --ink: #2A2420;
+    --ink-soft: #55493f;
+    --paper-text: #EDE9E1;
+    --muted: #9B9791;
+    --rule: #3A3A3F;
+    --danger: #C4432E;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{margin:0; background:var(--bg); color:var(--paper-text); font-family:'IBM Plex Sans',sans-serif;}
+  h1,h2,h3{font-family:'Oswald',sans-serif; text-transform:uppercase; letter-spacing:0.04em; margin:0;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  button, input, textarea, select{font-family:inherit;}
+
+  header{
+    position:sticky; top:0; z-index:10;
+    padding:16px 16px calc(10px + env(safe-area-inset-top)) 16px;
+    background:linear-gradient(180deg, #29292D, #202023);
+    border-bottom:3px solid var(--orange);
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  header h1{font-size:20px; color:var(--paper-text);}
+  header h1 span{color:var(--orange);}
+  #installBtn{
+    display:none;
+    background:var(--orange); color:#1A1A1C; border:none;
+    font-family:'Oswald',sans-serif; font-weight:600; text-transform:uppercase;
+    font-size:12px; padding:8px 12px; border-radius:3px; cursor:pointer;
+  }
+
+  #iosBanner{
+    display:none;
+    background:var(--brass); color:#1A1A1C;
+    font-size:12.5px; padding:9px 16px; text-align:center;
+    font-family:'IBM Plex Sans',sans-serif;
+  }
+  #iosBanner button{
+    background:none; border:none; color:#1A1A1C; font-weight:600;
+    text-decoration:underline; padding:0 0 0 6px; cursor:pointer; font-size:12.5px;
+  }
+
+  #updateBanner{
+    display:none;
+    align-items:center; justify-content:center; gap:12px;
+    background:var(--orange); color:#1A1A1C;
+    font-size:13px; padding:10px 16px; text-align:center;
+    font-family:'IBM Plex Sans',sans-serif;
+    position:sticky; top:0; z-index:15;
+  }
+  #updateBanner button{
+    background:#1A1A1C; color:var(--paper-text); border:none;
+    font-family:'Oswald',sans-serif; font-weight:600; text-transform:uppercase;
+    font-size:12px; padding:6px 12px; border-radius:3px; cursor:pointer;
+  }
+
+  .search-wrap{padding:12px 16px 0;}
+  input[type=text], input[type=search], textarea, select{
+    width:100%; background:var(--panel-raised); border:1px solid var(--rule);
+    color:var(--paper-text); padding:11px 13px; border-radius:6px; font-size:15px;
+  }
+  input:focus, textarea:focus, select:focus{outline:2px solid var(--orange); outline-offset:1px;}
+
+  .chip-scroll{
+    display:flex; gap:8px; overflow-x:auto; padding:12px 16px 4px;
+    -webkit-overflow-scrolling:touch;
+  }
+  .chip-scroll::-webkit-scrollbar{display:none;}
+  .chip{
+    flex:0 0 auto; padding:7px 14px; border:1px solid var(--rule); border-radius:16px;
+    font-size:13px; font-family:'IBM Plex Mono',monospace; color:var(--muted);
+    background:transparent; white-space:nowrap;
+  }
+  .chip.active{background:var(--orange); color:#1A1A1C; border-color:var(--orange); font-weight:600;}
+
+  .board{padding:14px 16px 100px; display:flex; flex-direction:column; gap:16px;}
+  .empty-state{text-align:center; padding:60px 20px; color:var(--muted);}
+  .empty-state h3{color:var(--paper-text); font-size:18px; margin-bottom:8px; text-transform:none; letter-spacing:0;}
+  .empty-state p{font-size:14px; max-width:340px; margin:0 auto 18px;}
+
+  .tag-card{
+    background:var(--tag); color:var(--ink); border-radius:2px; position:relative;
+    padding:18px 18px 18px 30px;
+    box-shadow: 2px 3px 0 #00000055;
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 10% 100%, 0 90%);
+  }
+  .tag-card .grommet{
+    position:absolute; top:14px; left:12px; width:13px; height:13px; border-radius:50%;
+    background:radial-gradient(circle at 35% 35%, #d8d2c0, #a49c86);
+    box-shadow: inset 0 0 0 3px var(--tag);
+  }
+  .tag-card .tag-num{position:absolute; top:14px; left:30px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft);}
+  .tag-card .source-mark{position:absolute; top:12px; right:12px; font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; padding:3px 7px; border-radius:10px;}
+  .status-badge{display:inline-block; font-family:'Oswald',sans-serif; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:#7a3a1a; background:#E85D2530; border:1px solid #E85D2560; padding:3px 9px; border-radius:2px; margin-bottom:8px;}
+  .source-dad{background:#C9A22733; color:#8a6d10;}
+  .source-experience{background:#4a7a4a33; color:#2f5c2f;}
+  .source-ai{background:#3a6ea533; color:#204d78;}
+  .source-manual{background:#83838333; color:#444;}
+  .tag-card h3{margin:12px 0 6px; font-size:16.5px; color:var(--ink); text-transform:none; letter-spacing:0; line-height:1.3;}
+  .tag-card .engine-badge{display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); background:#00000010; padding:3px 8px; border-radius:2px; margin-bottom:8px;}
+  .tag-card .preview{font-size:13px; color:var(--ink-soft); line-height:1.5;}
+  .card-photo-thumb{margin-top:10px; height:80px; border-radius:2px; background-color:#00000015; background-size:cover; background-position:center; position:relative; display:flex; align-items:flex-end;}
+  .card-photo-thumb .photo-count{background:#000000aa; color:#fff; font-size:10px; padding:2px 6px; border-radius:2px; margin:6px;}
+  .tag-card .tag-footer{margin-top:12px; display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-soft); border-top:1px dashed #00000022; padding-top:7px;}
+
+  .fab{
+    position:fixed; right:18px; bottom:calc(18px + env(safe-area-inset-bottom));
+    width:58px; height:58px; border-radius:50%;
+    background:var(--orange); color:#1A1A1C; border:none; font-size:28px; line-height:58px;
+    box-shadow:0 4px 12px #00000066; cursor:pointer; z-index:20;
+  }
+
+  .sheet-overlay{
+    position:fixed; inset:0; background:#000000d0; display:none; z-index:50;
+  }
+  .sheet-overlay.open{display:block;}
+  .sheet{
+    position:absolute; inset:0; background:var(--panel);
+    overflow-y:auto; padding:calc(16px + env(safe-area-inset-top)) 18px calc(30px + env(safe-area-inset-bottom));
+  }
+  .sheet-topbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; position:sticky; top:0; background:var(--panel); padding-bottom:8px;}
+  .sheet-topbar h2{font-size:18px;}
+  .sheet-btn{background:none; border:none; color:var(--orange); font-family:'Oswald',sans-serif; font-weight:600; text-transform:uppercase; font-size:14px; padding:8px; cursor:pointer;}
+  .sheet-btn.muted{color:var(--muted);}
+
+  .field{margin-bottom:16px;}
+  .field label{display:block; font-family:'Oswald',sans-serif; font-size:12px; letter-spacing:0.06em; color:var(--brass); text-transform:uppercase; margin-bottom:6px;}
+  textarea{resize:vertical; min-height:70px; line-height:1.5;}
+  .field-row{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+
+  .photo-actions-row{display:flex; gap:10px; margin-bottom:10px;}
+  .btn-photo{background:var(--panel-raised); color:var(--paper-text); border:1px solid var(--rule); font-size:13px; padding:10px 14px; border-radius:6px; flex:1;}
+  .photo-field-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(80px,1fr)); gap:8px;}
+  .photo-thumb-wrap{position:relative; height:80px; border-radius:5px; overflow:hidden; background:#00000030; background-size:cover; background-position:center;}
+  .photo-thumb-wrap .remove-x{position:absolute; top:3px; right:3px; width:22px; height:22px; background:#000000aa; color:#fff; border:none; border-radius:50%; font-size:14px;}
+
+  .detail-section{margin-bottom:16px;}
+  .detail-section .drawer-label{font-family:'Oswald',sans-serif; font-size:12px; color:var(--brass); letter-spacing:0.06em; text-transform:uppercase; margin-bottom:6px;}
+  .detail-section p{font-size:14.5px; line-height:1.6; margin:0; white-space:pre-wrap;}
+  .detail-actions{display:flex; gap:10px; margin-top:22px; padding-top:16px; border-top:1px solid var(--rule);}
+  .btn-full{flex:1; padding:12px; border-radius:6px; font-family:'Oswald',sans-serif; text-transform:uppercase; font-size:13px; border:none;}
+  .btn-full.edit{background:var(--orange); color:#1A1A1C; font-weight:600;}
+  .btn-full.delete{background:transparent; color:var(--danger); border:1px solid var(--danger);}
+
+  .lightbox-overlay{position:fixed; inset:0; background:#000000e0; display:none; align-items:center; justify-content:center; z-index:60; padding:20px;}
+  .lightbox-overlay.open{display:flex;}
+  .lightbox-overlay img{max-width:100%; max-height:100%; border-radius:4px;}
+
+  .stat-line{padding:6px 16px 4px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted);}
+</style>
+</head>
+<body>
+
+<div id="updateBanner">
+  <span>A new version is available.</span>
+  <button onclick="applyUpdate()">Refresh</button>
+</div>
+
+<header>
+  <h1>BENCH <span>NOTES</span></h1>
+  <button id="installBtn">Install</button>
+</header>
+
+<div id="iosBanner">
+  Add to your Home Screen: tap Share, then "Add to Home Screen".
+  <button onclick="document.getElementById('iosBanner').style.display='none'">Dismiss</button>
+</div>
+
+<div class="search-wrap">
+  <input type="search" id="searchInput" placeholder="Search symptom, model, part..." oninput="render()">
+</div>
+
+<div class="chip-scroll" id="statusFilters">
+  <button class="chip active" data-status="all" onclick="setStatusFilter('all')">All</button>
+  <button class="chip" data-status="needs-diagnosis" onclick="setStatusFilter('needs-diagnosis')">Needs Diagnosis</button>
+</div>
+<div class="chip-scroll" id="sourceFilters">
+  <button class="chip active" data-source="all" onclick="setSourceFilter('all')">All</button>
+  <button class="chip" data-source="dad" onclick="setSourceFilter('dad')">Dad</button>
+  <button class="chip" data-source="experience" onclick="setSourceFilter('experience')">My experience</button>
+  <button class="chip" data-source="ai" onclick="setSourceFilter('ai')">AI-assisted</button>
+  <button class="chip" data-source="manual" onclick="setSourceFilter('manual')">Service manual</button>
+</div>
+<div class="chip-scroll" id="engineFilters"></div>
+<div class="stat-line" id="statLine"></div>
+
+<div id="board" class="board"></div>
+
+<button class="fab" onclick="openSheet()">+</button>
+
+<div class="sheet-overlay" id="sheetOverlay">
+  <div class="sheet" id="sheetContent"></div>
+</div>
+
+<div class="lightbox-overlay" id="lightboxOverlay" onclick="closeLightbox()">
+  <img id="lightboxImg" src="" alt="Photo">
+</div>
+
+<input type="file" id="hiddenPhotoInput" accept="image/*" capture="environment" multiple style="display:none">
+
+<script>
+// ---------- IndexedDB ----------
+const DB_NAME = 'benchNotesDB';
+const DB_VERSION = 1;
+let dbPromise = null;
+
+function openDB(){
+  if(dbPromise) return dbPromise;
+  dbPromise = new Promise((resolve, reject)=>{
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = (e)=>{
+      const db = e.target.result;
+      if(!db.objectStoreNames.contains('entries')) db.createObjectStore('entries', {keyPath:'id'});
+      if(!db.objectStoreNames.contains('photos')) db.createObjectStore('photos', {keyPath:'id'});
+    };
+    req.onsuccess = ()=>resolve(req.result);
+    req.onerror = ()=>reject(req.error);
+  });
+  return dbPromise;
+}
+
+async function idbGetAll(storeName){
+  const db = await openDB();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(storeName, 'readonly');
+    const req = tx.objectStore(storeName).getAll();
+    req.onsuccess = ()=>resolve(req.result);
+    req.onerror = ()=>reject(req.error);
+  });
+}
+
+async function idbPut(storeName, value){
+  const db = await openDB();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(storeName, 'readwrite');
+    tx.objectStore(storeName).put(value);
+    tx.oncomplete = ()=>resolve();
+    tx.onerror = ()=>reject(tx.error);
+  });
+}
+
+async function idbDelete(storeName, id){
+  const db = await openDB();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(storeName, 'readwrite');
+    tx.objectStore(storeName).delete(id);
+    tx.oncomplete = ()=>resolve();
+    tx.onerror = ()=>reject(tx.error);
+  });
+}
+
+async function idbGet(storeName, id){
+  const db = await openDB();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(storeName, 'readonly');
+    const req = tx.objectStore(storeName).get(id);
+    req.onsuccess = ()=>resolve(req.result);
+    req.onerror = ()=>reject(req.error);
+  });
+}
+
+// ---------- App state ----------
+let entries = [];
+let engineFilter = 'all';
+let sourceFilter = 'all';
+let statusFilter = 'all';
+let editingId = null;
+let draftPhotos = [];         // array of photo ids attached to entry being edited
+let photoUrlCache = {};       // photo id -> object URL
+
+const SOURCE_LABELS = {dad:'From Dad', experience:'My experience', ai:'AI-assisted', manual:'Service manual'};
+
+function uid(){ return 'e' + Date.now() + Math.floor(Math.random()*100000); }
+function photoId(){ return 'p' + Date.now() + Math.floor(Math.random()*100000); }
+
+async function loadEntries(){
+  try{
+    entries = await idbGetAll('entries');
+  }catch(e){
+    console.error('Load failed', e);
+    entries = [];
+  }
+  render();
+}
+
+async function saveEntryToDB(entry){
+  await idbPut('entries', entry);
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
+async function getPhotoUrl(id){
+  if(photoUrlCache[id]) return photoUrlCache[id];
+  const record = await idbGet('photos', id);
+  if(!record) return null;
+  const url = URL.createObjectURL(record.blob);
+  photoUrlCache[id] = url;
+  return url;
+}
+
+function isNeedsDiagnosis(entry){
+  return !entry.title && !entry.causes && !entry.steps && !entry.fix;
+}
+
+// ---------- Filters ----------
+function setSourceFilter(s){
+  sourceFilter = s;
+  document.querySelectorAll('#sourceFilters .chip').forEach(c=>c.classList.toggle('active', c.dataset.source === s));
+  render();
+}
+
+function setStatusFilter(s){
+  statusFilter = s;
+  document.querySelectorAll('#statusFilters .chip').forEach(c=>c.classList.toggle('active', c.dataset.status === s));
+  render();
+}
+
+function renderEngineFilters(){
+  const types = Array.from(new Set(entries.map(e=>e.engineType).filter(Boolean))).sort();
+  const wrap = document.getElementById('engineFilters');
+  wrap.innerHTML = '';
+  const allChip = document.createElement('button');
+  allChip.className = 'chip' + (engineFilter==='all' ? ' active':'');
+  allChip.textContent = 'All engines';
+  allChip.onclick = ()=>{ engineFilter='all'; renderEngineFilters(); render(); };
+  wrap.appendChild(allChip);
+  types.forEach(t=>{
+    const chip = document.createElement('button');
+    chip.className = 'chip' + (engineFilter===t ? ' active':'');
+    chip.textContent = t;
+    chip.onclick = ()=>{ engineFilter=t; renderEngineFilters(); render(); };
+    wrap.appendChild(chip);
+  });
+}
+
+function matchesFilters(entry, q){
+  if(engineFilter !== 'all' && entry.engineType !== engineFilter) return false;
+  if(sourceFilter !== 'all' && entry.source !== sourceFilter) return false;
+  if(statusFilter === 'needs-diagnosis' && !isNeedsDiagnosis(entry)) return false;
+  if(q){
+    const hay = [entry.title, entry.engineType, entry.causes, entry.steps, entry.fix, entry.notes,
+      entry.customerName, entry.customerPhone, entry.equipmentInfo, entry.customerRequest].join(' ').toLowerCase();
+    if(!hay.includes(q)) return false;
+  }
+  return true;
+}
+
+// ---------- Board rendering ----------
+function render(){
+  renderEngineFilters();
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const filtered = entries.filter(e=>matchesFilters(e,q)).sort((a,b)=>b.createdAt - a.createdAt);
+
+  const dadCount = entries.filter(e=>e.source==='dad').length;
+  document.getElementById('statLine').innerHTML =
+    `${filtered.length}${entries.length!==filtered.length ? ' of ' + entries.length : ''} entries · ${dadCount} from Dad`;
+
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+
+  if(entries.length === 0){
+    board.innerHTML = `<div class="empty-state">
+      <h3>No entries yet</h3>
+      <p>Tap the + button to log your first symptom, cause, and fix.</p>
+    </div>`;
+    return;
+  }
+  if(filtered.length === 0){
+    board.innerHTML = `<div class="empty-state"><h3>Nothing matches</h3><p>Try a different search or clear your filters.</p></div>`;
+    return;
+  }
+
+  filtered.forEach(entry=>{
+    const num = String(entries.length - entries.findIndex(e=>e.id===entry.id)).padStart(3,'0');
+    const hasPhotos = entry.photos && entry.photos.length > 0;
+    const needsDiag = isNeedsDiagnosis(entry);
+    const headline = entry.title || entry.customerName || 'Untitled entry';
+    const card = document.createElement('div');
+    card.className = 'tag-card';
+    card.onclick = ()=>openDetail(entry.id);
+    card.innerHTML = `
+      <div class="grommet"></div>
+      <div class="tag-num">#${num}</div>
+      <div class="source-mark source-${entry.source}">${SOURCE_LABELS[entry.source]||''}</div>
+      ${needsDiag ? `<div class="status-badge">Needs Diagnosis</div>` : ''}
+      ${entry.engineType ? `<div class="engine-badge">${escapeHtml(entry.engineType)}</div>` : ''}
+      <h3>${escapeHtml(headline)}</h3>
+      ${entry.title && entry.customerName ? `<div class="mono" style="font-size:11.5px; color:var(--ink-soft); margin-bottom:4px;">👤 ${escapeHtml(entry.customerName)}</div>` : ''}
+      <div class="preview">${escapeHtml(entry.fix || entry.causes || entry.customerRequest || '')}</div>
+      ${hasPhotos ? `<div class="card-photo-thumb" data-photo-id="${entry.photos[0]}"><span class="mono photo-count">${entry.photos.length} photo${entry.photos.length>1?'s':''}</span></div>` : ''}
+      <div class="tag-footer"><span>${entry.dateAdded||''}</span><span>OPEN →</span></div>
+    `;
+    board.appendChild(card);
+  });
+
+  board.querySelectorAll('.card-photo-thumb').forEach(async (el)=>{
+    const url = await getPhotoUrl(el.dataset.photoId);
+    if(url) el.style.backgroundImage = `url(${url})`;
+  });
+}
+
+// ---------- Add/Edit sheet ----------
+function openSheet(entry){
+  editingId = entry ? entry.id : null;
+  const e = entry || {title:'',engineType:'',source:'dad',causes:'',steps:'',fix:'',notes:'',photos:[],
+    customerName:'',customerPhone:'',equipmentInfo:'',dateReceived:'',customerRequest:''};
+  draftPhotos = entry && entry.photos ? [...entry.photos] : [];
+
+  document.getElementById('sheetContent').innerHTML = `
+    <div class="sheet-topbar">
+      <button class="sheet-btn muted" onclick="closeSheet()">Cancel</button>
+      <h2>${entry ? 'Edit Entry' : 'New Entry'}</h2>
+      <button class="sheet-btn" onclick="saveEntry()">Save</button>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Customer Name</label>
+        <input type="text" id="f_customerName" placeholder="e.g. Mike Torres" value="${escapeHtml(e.customerName)}">
+      </div>
+      <div class="field">
+        <label>Phone Number</label>
+        <input type="text" id="f_customerPhone" placeholder="e.g. 555-0123" value="${escapeHtml(e.customerPhone)}">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Equipment / Serial No.</label>
+        <input type="text" id="f_equipmentInfo" placeholder="e.g. Toro 20370, SN 12345" value="${escapeHtml(e.equipmentInfo)}">
+      </div>
+      <div class="field">
+        <label>Date Received</label>
+        <input type="date" id="f_dateReceived" value="${escapeHtml(e.dateReceived)}">
+      </div>
+    </div>
+    <div class="field">
+      <label>Customer Request</label>
+      <textarea id="f_customerRequest" placeholder="What the customer said, in their words">${escapeHtml(e.customerRequest)}</textarea>
+    </div>
+
+    <div class="field">
+      <label>Symptom / Title <span class="mono" style="color:var(--muted); text-transform:none; letter-spacing:0; font-size:11px;">(optional — fill in once diagnosed)</span></label>
+      <input type="text" id="f_title" placeholder="e.g. Engine cranks but won't start" value="${escapeHtml(e.title)}">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Engine Type / Model</label>
+        <input type="text" id="f_engineType" placeholder="e.g. Briggs 500" value="${escapeHtml(e.engineType)}">
+      </div>
+      <div class="field">
+        <label>Source</label>
+        <select id="f_source">
+          <option value="dad" ${e.source==='dad'?'selected':''}>From Dad</option>
+          <option value="experience" ${e.source==='experience'?'selected':''}>My experience</option>
+          <option value="ai" ${e.source==='ai'?'selected':''}>AI-assisted</option>
+          <option value="manual" ${e.source==='manual'?'selected':''}>Service manual</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>Likely Causes</label><textarea id="f_causes">${escapeHtml(e.causes)}</textarea></div>
+    <div class="field"><label>Diagnostic Steps</label><textarea id="f_steps">${escapeHtml(e.steps)}</textarea></div>
+    <div class="field"><label>The Fix</label><textarea id="f_fix">${escapeHtml(e.fix)}</textarea></div>
+    <div class="field"><label>Notes</label><textarea id="f_notes">${escapeHtml(e.notes)}</textarea></div>
+
+    <div class="field">
+      <label>Photos</label>
+      <div class="photo-actions-row">
+        <button type="button" class="btn-photo" onclick="triggerPhotoInput()">📷 Add Photo</button>
+      </div>
+      <div class="photo-field-grid" id="draftPhotoGrid"></div>
+    </div>
+  `;
+  document.getElementById('sheetOverlay').classList.add('open');
+  renderDraftPhotoGrid();
+}
+
+function closeSheet(){
+  document.getElementById('sheetOverlay').classList.remove('open');
+  editingId = null;
+}
+
+function triggerPhotoInput(){
+  document.getElementById('hiddenPhotoInput').click();
+}
+
+document.getElementById('hiddenPhotoInput').addEventListener('change', async (event)=>{
+  const files = Array.from(event.target.files || []);
+  for(const file of files){
+    const id = photoId();
+    await idbPut('photos', {id, blob: file, mimeType: file.type, filename: id + '_' + file.name});
+    draftPhotos.push(id);
+  }
+  event.target.value = '';
+  renderDraftPhotoGrid();
+});
+
+async function renderDraftPhotoGrid(){
+  const grid = document.getElementById('draftPhotoGrid');
+  if(!grid) return;
+  grid.innerHTML = '';
+  for(const id of draftPhotos){
+    const wrap = document.createElement('div');
+    wrap.className = 'photo-thumb-wrap';
+    wrap.innerHTML = `<button type="button" class="remove-x" onclick="event.stopPropagation(); removeDraftPhoto('${id}')">×</button>`;
+    wrap.onclick = (ev)=>{ if(ev.target.classList.contains('remove-x')) return; openLightbox(id); };
+    grid.appendChild(wrap);
+    const url = await getPhotoUrl(id);
+    if(url) wrap.style.backgroundImage = `url(${url})`;
+  }
+}
+
+async function removeDraftPhoto(id){
+  draftPhotos = draftPhotos.filter(p=>p!==id);
+  await idbDelete('photos', id);
+  delete photoUrlCache[id];
+  renderDraftPhotoGrid();
+}
+
+async function saveEntry(){
+  const title = document.getElementById('f_title').value.trim();
+  const customerName = document.getElementById('f_customerName').value.trim();
+  if(!title && !customerName){
+    alert('Add at least a customer name or a symptom title so you can find this again.');
+    return;
+  }
+
+  const data = {
+    title,
+    engineType: document.getElementById('f_engineType').value.trim(),
+    source: document.getElementById('f_source').value,
+    causes: document.getElementById('f_causes').value.trim(),
+    steps: document.getElementById('f_steps').value.trim(),
+    fix: document.getElementById('f_fix').value.trim(),
+    notes: document.getElementById('f_notes').value.trim(),
+    photos: [...draftPhotos],
+    customerName,
+    customerPhone: document.getElementById('f_customerPhone').value.trim(),
+    equipmentInfo: document.getElementById('f_equipmentInfo').value.trim(),
+    dateReceived: document.getElementById('f_dateReceived').value,
+    customerRequest: document.getElementById('f_customerRequest').value.trim()
+  };
+
+  let entry;
+  if(editingId){
+    const existing = entries.find(en=>en.id===editingId);
+    entry = {...existing, ...data};
+  } else {
+    entry = {
+      id: uid(), ...data, createdAt: Date.now(),
+      dateAdded: new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})
+    };
+  }
+  await saveEntryToDB(entry);
+  await loadEntries();
+  closeSheet();
+}
+
+// ---------- Detail view ----------
+function openDetail(id){
+  const entry = entries.find(e=>e.id===id);
+  if(!entry) return;
+  const hasPhotos = entry.photos && entry.photos.length > 0;
+  document.getElementById('sheetContent').innerHTML = `
+    <div class="sheet-topbar">
+      <button class="sheet-btn muted" onclick="closeSheet()">Close</button>
+      <h2 style="font-size:16px;">${escapeHtml(entry.title || entry.customerName || 'Untitled entry')}</h2>
+      <span style="width:60px;"></span>
+    </div>
+    <div class="stat-line" style="padding-left:0;">${entry.engineType ? escapeHtml(entry.engineType)+' · ' : ''}${SOURCE_LABELS[entry.source]||''} · ${entry.dateAdded||''}</div>
+    ${(entry.customerName || entry.customerPhone || entry.equipmentInfo || entry.dateReceived) ? `<div class="detail-section"><div class="drawer-label">Customer</div><p>${[
+        entry.customerName && escapeHtml(entry.customerName),
+        entry.customerPhone && escapeHtml(entry.customerPhone),
+        entry.equipmentInfo && escapeHtml(entry.equipmentInfo),
+        entry.dateReceived && ('Received ' + escapeHtml(entry.dateReceived))
+      ].filter(Boolean).join('<br>')}</p></div>` : ''}
+    ${entry.customerRequest ? `<div class="detail-section"><div class="drawer-label">Customer Request</div><p>${escapeHtml(entry.customerRequest)}</p></div>` : ''}
+    ${entry.causes ? `<div class="detail-section"><div class="drawer-label">Likely Causes</div><p>${escapeHtml(entry.causes)}</p></div>` : ''}
+    ${entry.steps ? `<div class="detail-section"><div class="drawer-label">Diagnostic Steps</div><p>${escapeHtml(entry.steps)}</p></div>` : ''}
+    ${entry.fix ? `<div class="detail-section"><div class="drawer-label">The Fix</div><p>${escapeHtml(entry.fix)}</p></div>` : ''}
+    ${entry.notes ? `<div class="detail-section"><div class="drawer-label">Notes</div><p>${escapeHtml(entry.notes)}</p></div>` : ''}
+    ${hasPhotos ? `<div class="detail-section"><div class="drawer-label">Photos</div><div class="photo-field-grid" id="detailPhotoGrid"></div></div>` : ''}
+    <div class="detail-actions">
+      <button class="btn-full delete" onclick="deleteEntry('${entry.id}')">Delete</button>
+      <button class="btn-full edit" onclick='openSheet(${JSON.stringify(entry).replace(/'/g,"&#39;")})'>Edit</button>
+    </div>
+  `;
+  document.getElementById('sheetOverlay').classList.add('open');
+  if(hasPhotos) renderDetailPhotoGrid(entry.photos);
+}
+
+async function renderDetailPhotoGrid(photos){
+  const grid = document.getElementById('detailPhotoGrid');
+  if(!grid) return;
+  grid.innerHTML = '';
+  for(const id of photos){
+    const wrap = document.createElement('div');
+    wrap.className = 'photo-thumb-wrap';
+    wrap.onclick = ()=>openLightbox(id);
+    grid.appendChild(wrap);
+    const url = await getPhotoUrl(id);
+    if(url) wrap.style.backgroundImage = `url(${url})`;
+  }
+}
+
+async function deleteEntry(id){
+  if(!confirm("Delete this entry? This can't be undone.")) return;
+  const entry = entries.find(e=>e.id===id);
+  if(entry && entry.photos){
+    for(const pid of entry.photos){
+      await idbDelete('photos', pid);
+      delete photoUrlCache[pid];
+    }
+  }
+  await idbDelete('entries', id);
+  await loadEntries();
+  closeSheet();
+}
+
+// ---------- Lightbox ----------
+async function openLightbox(id){
+  const url = await getPhotoUrl(id);
+  if(!url) return;
+  document.getElementById('lightboxImg').src = url;
+  document.getElementById('lightboxOverlay').classList.add('open');
+}
+function closeLightbox(){
+  document.getElementById('lightboxOverlay').classList.remove('open');
+}
+
+// ---------- Install prompt handling ----------
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e)=>{
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  document.getElementById('installBtn').style.display = 'inline-block';
+});
+document.getElementById('installBtn').addEventListener('click', async ()=>{
+  if(!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  document.getElementById('installBtn').style.display = 'none';
+});
+
+function isIOS(){
+  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+function isStandalone(){
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+if(isIOS() && !isStandalone()){
+  document.getElementById('iosBanner').style.display = 'block';
+}
+
+// ---------- Service worker + update detection ----------
+let waitingWorker = null;
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('service-worker.js').then((reg)=>{
+      // Case 1: a new version already finished installing before this
+      // page load (e.g. it installed in a background tab earlier).
+      if(reg.waiting){
+        waitingWorker = reg.waiting;
+        showUpdateBanner();
+      }
+      // Case 2: a new version starts installing while we're here.
+      reg.addEventListener('updatefound', ()=>{
+        const newWorker = reg.installing;
+        if(!newWorker) return;
+        newWorker.addEventListener('statechange', ()=>{
+          // "installed" + an existing controller means this is an UPDATE,
+          // not the very first install (which has no controller yet).
+          if(newWorker.state === 'installed' && navigator.serviceWorker.controller){
+            waitingWorker = newWorker;
+            showUpdateBanner();
+          }
+        });
+      });
+    }).catch(err=>console.error('SW registration failed', err));
+
+    // Once the waiting worker takes over, reload so the page actually
+    // uses the new version instead of running old code against new cache.
+    let alreadyRefreshed = false;
+    navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+      if(alreadyRefreshed) return;
+      alreadyRefreshed = true;
+      window.location.reload();
+    });
+  });
+}
+
+function showUpdateBanner(){
+  document.getElementById('updateBanner').style.display = 'flex';
+}
+
+function applyUpdate(){
+  if(waitingWorker){
+    waitingWorker.postMessage({type:'SKIP_WAITING'});
+  }
+}
+
+loadEntries();
+</script>
+</body>
+</html>

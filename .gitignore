@@ -1,0 +1,14 @@
+# Electron / Node
+desktop/node_modules/
+desktop/dist/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Local runtime data (never actually generated inside the repo, but just in case)
+bench_notes_data.json
+config.json

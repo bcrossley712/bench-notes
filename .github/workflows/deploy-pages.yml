@@ -1,0 +1,49 @@
+name: Deploy PWA to GitHub Pages
+
+# Runs automatically any time you push a change inside the /pwa folder,
+# or you can trigger it manually from the Actions tab.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pwa/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Stamp cache version into service worker
+        # Replaces the __VERSION__ placeholder with this commit's hash, so
+        # every real deploy gets a genuinely new cache name and phones
+        # actually pick up the update instead of reusing a stale cache.
+        # This only edits the checked-out copy used for deployment - the
+        # placeholder in the repo itself is untouched.
+        run: sed -i "s/__VERSION__/${{ github.sha }}/" pwa/service-worker.js
+
+      - name: Upload the pwa/ folder as the Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'pwa'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

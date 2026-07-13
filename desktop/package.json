@@ -1,0 +1,35 @@
+{
+  "name": "bench-notes",
+  "version": "1.0.0",
+  "description": "Small engine repair reference and troubleshooting log",
+  "main": "main.js",
+  "author": "",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.benchnotes.app",
+    "productName": "Bench Notes",
+    "files": [
+      "main.js",
+      "preload.js",
+      "bench-notes.html",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    }
+  }
+}
