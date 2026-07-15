@@ -45,8 +45,8 @@ _Last updated: repo structure finalized_
 
 ## Shared data format (contract between Electron and PWA)
 - [x] Customer fields added to both apps identically: customerName,
-      customerPhone, equipmentInfo, dateReceived, customerRequest
-      (kept separate from title/symptom, as decided)
+      customerPhone, equipmentModel, equipmentSerial, dateReceived,
+      customerRequest (kept separate from title/symptom, as decided)
 - [ ] Define + document: `bench_notes_data.json` (array of entries, same
       field names on both apps) + a `photos/` folder of real image files,
       named to match filenames referenced in the JSON

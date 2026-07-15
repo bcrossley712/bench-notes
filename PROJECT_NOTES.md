@@ -4,6 +4,28 @@ Read this first if you're picking this project up in a new chat. It's
 context for you (the next Claude), not end-user documentation — that
 lives in the README files.
 
+## Usage-efficiency expectations for Claude
+
+- **Assume the code in this conversation is current** unless I say otherwise. Don't re-pull the full
+  repo/tarball if it's already been fetched this session — re-fetch only when I tell you something
+  changed outside our conversation, or at the very start of a new session.
+- **Pull or view only what the task touches.** Grep for the specific function/selector/section first,
+  then view a targeted range — don't read whole files (or the whole repo) to make a small, well-scoped
+  change.
+- **Match verification effort to the change.** Only run a test suite (or extend it) when a change
+  touches actual logic. Skip it for CSS, copy, layout, or other changes it can't meaningfully verify.
+- **Don't build throwaway tooling** (scratch repro files, sandboxes, etc.) to double-check something
+  reasoning from the code and docs can already answer — only build a repro when there's a real, otherwise
+  unresolvable uncertainty.
+- **Keep the project notes file itself lean.** Record current state and the *why* behind decisions, not a
+  session-by-session diary of how each bug was found and fixed — that history belongs in git commits, not
+  here. If this file starts creeping back up in size, trim it rather than let it compound.
+- **Deliver only the files that actually changed**, not a full re-zip of the project.
+- **Check in before packaging/shipping** — confirm the plan or show the diff before finalizing files,
+  even for a single-file change, unless I've clearly told you to just go ahead.
+- **Batch related changes** into one pass rather than iterating file-by-file across separate turns when
+  the scope is already clear.
+
 ## What this is
 
 A troubleshooting/work-order log for a small engine repair shop, built
@@ -48,11 +70,17 @@ are*, so you don't accidentally re-litigate settled decisions.
   - **Not built yet.** This is the next big piece when picked back up.
 - **Shared entry schema.** Both apps must read/write identical field
   names so a future sync layer doesn't have to translate between two
-  formats. Current entry fields: `title`, `engineType`, `source`,
-  `causes`, `steps`, `fix`, `notes`, `photos[]`, `customerName`,
-  `customerPhone`, `equipmentInfo`, `dateReceived`, `customerRequest`,
-  `completed`, `createdAt`, `dateAdded`. If you add a field to one
-  app, add it to the other at the same time.
+  formats. Current entry fields: `title`, `engineModel`, `engineCode`,
+  `source`, `causes`, `steps`, `fix`, `partsUsed`, `notes`, `photos[]`,
+  `customerName`, `customerPhone`, `equipmentModel`, `equipmentSerial`,
+  `dateReceived`, `customerRequest`, `checklist` (object keyed by item
+  id, e.g. `sparkTest: {checked, note}` — see `CHECKLIST_ITEMS` in each
+  app for the current 13 items), `completed`, `createdAt`, `dateAdded`.
+  If you add a field to one app, add it to the other at the same time.
+- **Photo order is meaningful.** `photos[0]` is always the cover/
+  thumbnail — both apps rely on this convention instead of a separate
+  "cover photo" field, so reordering the array (not adding a new field)
+  is how a cover photo gets changed.
 - **Intake workflow:** an entry can be saved with just customer info
   (no title required) — matches real shop workflow where the customer
   drops off equipment before any diagnosis has happened. A "Needs
@@ -79,6 +107,15 @@ are*, so you don't accidentally re-litigate settled decisions.
   changes on that tab. Full state-preservation across tabs was
   deliberately out of scope to avoid further scope creep; flagged
   clearly to the user, not a bug they're unaware of.
+- **Tab-close confirm** only fires for a brand-new, never-saved entry
+  (`tab.isNew && tab.mode==='edit'`) — closing a tab mid-edit of an
+  *existing* entry still closes silently (same known limitation
+  above; not extended to avoid scope creep).
+- **Service Checklist** (13 fixed items mirroring the paper work order
+  sheet) live-writes into the Fix textarea as items are checked, e.g.
+  `Blade Sharpening - done`. Implementation tracks the last-generated
+  block (`checklistFixBlock`) so it can find-and-replace just its own
+  lines without touching anything the user typed manually below it.
 - Not yet tested on real Windows hardware as of this note. Check
   `TODO.md`.
 
@@ -101,6 +138,18 @@ are*, so you don't accidentally re-litigate settled decisions.
 - Simpler single-work-order-at-a-time interface (no tabs) — deliberate
   choice given phone screen size; confirmed with the user rather than
   assumed.
+- **Back button closes the open entry/photo, not the app.** Uses
+  `history.pushState`/`popstate` with a small view stack (board →
+  sheet → lightbox). Opening a brand-new unsaved entry sets
+  `sheetIsNewUnsaved`; the popstate handler intercepts back on that
+  state specifically to confirm discard before actually closing
+  (existing/saved entries close on back with no confirm — matches
+  desktop's tab-close scope, see below).
+- **Photo lightbox** supports prev/next arrows and swipe between all
+  of an entry's photos, plus a "Set as cover" action. Cover is not a
+  separate field — it just reorders `photos[]` so the chosen photo
+  becomes index 0, since both apps already treat `photos[0]` as the
+  thumbnail.
 - Not yet deployed to GitHub Pages or tested on real phones as of this
   note. Check `TODO.md`.
 
