@@ -362,6 +362,10 @@
   }
   textarea{resize:vertical; min-height:64px; font-size:14px; line-height:1.5;}
   .field-row{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .form-section{border:1px solid var(--rule); border-radius:8px; padding:16px; margin-bottom:18px; background:var(--panel-raised);}
+  .form-section-title{font-family:'Oswald',sans-serif; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; font-size:13px; color:var(--orange); margin-bottom:14px; padding-bottom:8px; border-bottom:1px solid var(--rule);}
+  .form-subsection{margin-top:14px; padding-top:14px; border-top:1px dashed var(--rule);}
+  .form-subsection-title{font-family:'Oswald',sans-serif; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; font-size:11px; color:var(--brass); margin-bottom:10px;}
   .checklist-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
   .checklist-row{display:flex; align-items:center; gap:10px; background:var(--panel-raised); border:1px solid var(--rule); border-radius:6px; padding:8px 10px;}
   .checklist-check{display:flex; align-items:center; gap:8px; flex:1 1 auto; min-width:0; font-size:13.5px;}
@@ -914,33 +918,53 @@ function renderEntryForm(tab){
         </div>
       </div>
 
-      <div class="field-row">
-        <div class="field">
-          <label>Customer Name</label>
-          <input type="text" id="f_customerName" placeholder="e.g. Mike Torres" value="${escapeHtml(e.customerName)}">
+      <div class="form-section">
+        <div class="form-section-title">Customer</div>
+        <div class="field-row">
+          <div class="field">
+            <label>Customer Name</label>
+            <input type="text" id="f_customerName" placeholder="e.g. Mike Torres" value="${escapeHtml(e.customerName)}">
+          </div>
+          <div class="field">
+            <label>Phone Number</label>
+            <input type="text" id="f_customerPhone" placeholder="e.g. 555-0123" value="${escapeHtml(e.customerPhone)}">
+          </div>
         </div>
         <div class="field">
-          <label>Phone Number</label>
-          <input type="text" id="f_customerPhone" placeholder="e.g. 555-0123" value="${escapeHtml(e.customerPhone)}">
+          <label>Date Received</label>
+          <input type="date" id="f_dateReceived" value="${escapeHtml(e.dateReceived)}">
+        </div>
+        <div class="field">
+          <label>Request</label>
+          <textarea id="f_customerRequest" placeholder="What the customer said, in their words">${escapeHtml(e.customerRequest)}</textarea>
         </div>
       </div>
-      <div class="field-row">
-        <div class="field">
-          <label>Equipment / Model</label>
-          <input type="text" id="f_equipmentModel" placeholder="e.g. Toro 20370" value="${escapeHtml(e.equipmentModel)}">
+
+      <div class="form-section">
+        <div class="form-section-title">Equipment</div>
+        <div class="field-row">
+          <div class="field">
+            <label>Model</label>
+            <input type="text" id="f_equipmentModel" placeholder="e.g. Toro 20370" value="${escapeHtml(e.equipmentModel)}">
+          </div>
+          <div class="field">
+            <label>Serial</label>
+            <input type="text" id="f_equipmentSerial" placeholder="e.g. SN 12345" value="${escapeHtml(e.equipmentSerial)}">
+          </div>
         </div>
-        <div class="field">
-          <label>Equipment / Serial</label>
-          <input type="text" id="f_equipmentSerial" placeholder="e.g. SN 12345" value="${escapeHtml(e.equipmentSerial)}">
+        <div class="form-subsection">
+          <div class="form-subsection-title">Engine</div>
+          <div class="field-row">
+            <div class="field">
+              <label>Model</label>
+              <input type="text" id="f_engineModel" placeholder="e.g. Briggs 500 series" value="${escapeHtml(e.engineModel)}">
+            </div>
+            <div class="field">
+              <label>Code</label>
+              <input type="text" id="f_engineCode" placeholder="e.g. 21B807" value="${escapeHtml(e.engineCode)}">
+            </div>
+          </div>
         </div>
-      </div>
-      <div class="field">
-        <label>Date Received</label>
-        <input type="date" id="f_dateReceived" value="${escapeHtml(e.dateReceived)}">
-      </div>
-      <div class="field">
-        <label>Customer Request</label>
-        <textarea id="f_customerRequest" placeholder="What the customer said, in their words">${escapeHtml(e.customerRequest)}</textarea>
       </div>
 
       <div class="field">
@@ -948,16 +972,6 @@ function renderEntryForm(tab){
         <input type="text" id="f_title" placeholder="e.g. Engine cranks but won't start" value="${escapeHtml(e.title)}">
       </div>
 
-      <div class="field-row">
-        <div class="field">
-          <label>Engine / Model</label>
-          <input type="text" id="f_engineModel" placeholder="e.g. Briggs 500 series" value="${escapeHtml(e.engineModel)}">
-        </div>
-        <div class="field">
-          <label>Engine / Code</label>
-          <input type="text" id="f_engineCode" placeholder="e.g. 21B807" value="${escapeHtml(e.engineCode)}">
-        </div>
-      </div>
       <div class="field">
         <label>Source</label>
         <select id="f_source">
@@ -1153,14 +1167,18 @@ function renderEntryDetail(tab){
           <button class="btn btn-save" onclick="switchToEditMode('${tab.id}')">Edit</button>
         </div>
       </div>
-      ${(entry.customerName || entry.customerPhone || entry.equipmentModel || entry.equipmentSerial || entry.dateReceived) ? `<div class="detail-section"><div class="drawer-label">Customer</div><p>${[
+      ${(entry.customerName || entry.customerPhone || entry.dateReceived || entry.customerRequest) ? `<div class="detail-section"><div class="drawer-label">Customer</div><p>${[
           entry.customerName && escapeHtml(entry.customerName),
           entry.customerPhone && escapeHtml(entry.customerPhone),
-          entry.equipmentModel && escapeHtml(entry.equipmentModel),
-          entry.equipmentSerial && ('SN ' + escapeHtml(entry.equipmentSerial)),
           entry.dateReceived && ('Received ' + escapeHtml(entry.dateReceived))
-        ].filter(Boolean).join('<br>')}</p></div>` : ''}
-      ${entry.customerRequest ? `<div class="detail-section"><div class="drawer-label">Customer Request</div><p>${escapeHtml(entry.customerRequest)}</p></div>` : ''}
+        ].filter(Boolean).join('<br>')}</p>${entry.customerRequest ? `<p style="margin-top:8px;"><span class="mono" style="color:var(--muted); font-size:11px;">REQUEST</span><br>${escapeHtml(entry.customerRequest)}</p>` : ''}</div>` : ''}
+      ${(entry.equipmentModel || entry.equipmentSerial || entry.engineModel || entry.engineCode) ? `<div class="detail-section"><div class="drawer-label">Equipment</div><p>${[
+          entry.equipmentModel && escapeHtml(entry.equipmentModel),
+          entry.equipmentSerial && ('SN ' + escapeHtml(entry.equipmentSerial))
+        ].filter(Boolean).join('<br>')}</p>${(entry.engineModel || entry.engineCode) ? `<p style="margin-top:8px;"><span class="mono" style="color:var(--muted); font-size:11px;">ENGINE</span><br>${[
+          entry.engineModel && escapeHtml(entry.engineModel),
+          entry.engineCode && escapeHtml(entry.engineCode)
+        ].filter(Boolean).join('<br>')}</p>` : ''}</div>` : ''}
       ${entry.causes ? `<div class="detail-section"><div class="drawer-label">Likely Causes</div><p>${escapeHtml(entry.causes)}</p></div>` : ''}
       ${entry.steps ? `<div class="detail-section"><div class="drawer-label">Diagnostic Steps</div><p>${escapeHtml(entry.steps)}</p></div>` : ''}
       ${entry.fix ? `<div class="detail-section"><div class="drawer-label">The Fix</div><p>${escapeHtml(entry.fix)}</p></div>` : ''}

@@ -126,8 +126,10 @@ are*, so you don't accidentally re-litigate settled decisions.
   `Blade Sharpening - done`. Implementation tracks the last-generated
   block (`checklistFixBlock`) so it can find-and-replace just its own
   lines without touching anything the user typed manually below it.
-- Not yet tested on real Windows hardware as of this note. Check
-  `TODO.md`.
+- App launches cleanly via `npm start`. Feature-level testing (entries,
+  checklist, photos, tab-close confirm, folder change) and the packaged
+  `.exe` install are still outstanding — see `TODO.md` for the exact
+  checklist.
 
 ## PWA specifics
 
@@ -160,8 +162,10 @@ are*, so you don't accidentally re-litigate settled decisions.
   separate field — it just reorders `photos[]` so the chosen photo
   becomes index 0, since both apps already treat `photos[0]` as the
   thumbnail.
-- Not yet deployed to GitHub Pages or tested on real phones as of this
-  note. Check `TODO.md`.
+- Deployed to GitHub Pages and tested on a real Android phone,
+  including home-screen install. Still outstanding: offline/
+  airplane-mode test, and getting it in front of Dad's iPhone — see
+  `TODO.md`.
 
 ## Working agreements with this user
 
@@ -172,6 +176,11 @@ are*, so you don't accidentally re-litigate settled decisions.
   include the files actually touched by the change, not the whole
   repo. The user uses their own "download all" zip option when they
   want everything.
+- **When packaging, include every file touched since the *last*
+  package** — not just the files touched in the most recent change.
+  If a file was edited a few turns ago and never actually delivered
+  (e.g. because packaging was deferred), it's still owed next time
+  "package it up" is said. Missed this once already — don't repeat it.
 - User's local path: `C:\source\bench-notes` — the repo root.
 - User is comfortable with Node/npm tooling; explanations can assume
   that baseline rather than over-explaining basic terminal usage.
