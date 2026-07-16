@@ -198,7 +198,7 @@
 </div>
 
 <div class="search-wrap">
-  <input type="search" id="searchInput" placeholder="Search symptom, model, part..." oninput="render()">
+  <input type="search" id="searchInput" placeholder="Search symptom, model, part..." oninput="render()" onsearch="this.blur()">
 </div>
 
 <div class="chip-scroll" id="statusFilters">
@@ -232,6 +232,7 @@
 </div>
 
 <input type="file" id="hiddenPhotoInput" accept="image/*" capture="environment" multiple style="display:none">
+<input type="file" id="hiddenLibraryInput" accept="image/*" multiple style="display:none">
 
 <script>
 // ---------- IndexedDB ----------
@@ -355,7 +356,23 @@ async function loadEntries(){
     console.error('Load failed', e);
     entries = [];
   }
+  await ensureOrderNumbers();
   render();
+}
+
+// One-time migration + safety net: every entry gets a permanent orderNumber
+// the first time it's seen without one, assigned in creation order so old
+// entries keep roughly the numbering they already had. Once set, an
+// entry's number never changes again regardless of what else is added/removed.
+async function ensureOrderNumbers(){
+  const missing = entries.filter(e => !e.orderNumber);
+  if(missing.length === 0) return;
+  let next = entries.reduce((max,e)=> e.orderNumber ? Math.max(max, e.orderNumber) : max, 0) + 1;
+  missing.sort((a,b)=> (a.createdAt||0) - (b.createdAt||0));
+  for(const entry of missing){
+    entry.orderNumber = next++;
+    await saveEntryToDB(entry);
+  }
 }
 
 async function saveEntryToDB(entry){
@@ -451,7 +468,7 @@ function render(){
   }
 
   filtered.forEach(entry=>{
-    const num = String(entries.length - entries.findIndex(e=>e.id===entry.id)).padStart(3,'0');
+    const num = String(entry.orderNumber || 0).padStart(3,'0');
     const hasPhotos = entry.photos && entry.photos.length > 0;
     const needsDiag = isNeedsDiagnosis(entry);
     const headline = entry.title || entry.customerName || 'Untitled entry';
@@ -584,7 +601,8 @@ function openSheet(entry){
     <div class="field">
       <label>Photos</label>
       <div class="photo-actions-row">
-        <button type="button" class="btn-photo" onclick="triggerPhotoInput()">📷 Add Photo</button>
+        <button type="button" class="btn-photo" onclick="triggerPhotoInput()">📷 Take Photo</button>
+        <button type="button" class="btn-photo" onclick="triggerLibraryInput()">🖼️ Choose Existing</button>
       </div>
       <div class="photo-field-grid" id="draftPhotoGrid"></div>
     </div>
@@ -630,8 +648,11 @@ function onChecklistChange(){
 function triggerPhotoInput(){
   document.getElementById('hiddenPhotoInput').click();
 }
+function triggerLibraryInput(){
+  document.getElementById('hiddenLibraryInput').click();
+}
 
-document.getElementById('hiddenPhotoInput').addEventListener('change', async (event)=>{
+async function handlePhotoFiles(event){
   const files = Array.from(event.target.files || []);
   for(const file of files){
     const id = photoId();
@@ -640,7 +661,9 @@ document.getElementById('hiddenPhotoInput').addEventListener('change', async (ev
   }
   event.target.value = '';
   renderDraftPhotoGrid();
-});
+}
+document.getElementById('hiddenPhotoInput').addEventListener('change', handlePhotoFiles);
+document.getElementById('hiddenLibraryInput').addEventListener('change', handlePhotoFiles);
 
 async function renderDraftPhotoGrid(){
   const grid = document.getElementById('draftPhotoGrid');
@@ -697,8 +720,9 @@ async function saveEntry(){
     const existing = entries.find(en=>en.id===editingId);
     entry = {...existing, ...data};
   } else {
+    const nextNum = entries.reduce((max,e)=> e.orderNumber ? Math.max(max,e.orderNumber) : max, 0) + 1;
     entry = {
-      id: uid(), ...data, createdAt: Date.now(),
+      id: uid(), ...data, orderNumber: nextNum, createdAt: Date.now(),
       dateAdded: new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})
     };
   }

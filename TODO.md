@@ -1,27 +1,26 @@
 # Bench Notes — Things to Do at the Computer
 
-_Last updated: repo structure finalized_
+_Last updated: PWA deployed and mostly tested; desktop confirmed launching, feature testing not started_
 
 ## Repo structure — decided and built
 - [x] One repo (`bench-notes`), not two — `/pwa` and `/desktop` subfolders
 - [x] GitHub Actions workflow to auto-deploy `/pwa` on push (avoids the
       awkward "must be named /docs" zero-config route)
-- [ ] `bench-notes-repo.zip` is now the canonical local folder to keep in
-      sync — treat the separate `bench-notes-pwa.zip` /
-      `bench-notes-electron.zip` as superseded
-- [ ] Push to GitHub, then set Settings -> Pages -> Source to
-      "GitHub Actions" (one-time)
+- [x] Repo is the canonical source now — code lives in git, not zip
+      files; the old zip-based handoff process is superseded
+- [x] Pushed to GitHub, Pages enabled, PWA is live and deployed
 
-## Desktop app (Electron) — not yet tested
-- [ ] Unzip `bench-notes-electron.zip` somewhere permanent (not Downloads)
-- [ ] Run `npm install` (first time only — downloads Electron, ~150-200MB)
-- [ ] Run `npm start` — confirm the app window opens and looks right
-- [ ] Test creating a new entry (text fields, source tags, engine type)
+## Desktop app (Electron) — launches, features not yet verified
+- [x] Run `npm install` / `npm start` — app window opens and looks right
+- [ ] Test creating a new entry (text fields, source tags, engine model/code)
+- [ ] Test the Service Checklist (checkbox + note → auto-fills Fix field)
 - [ ] Test "Attach from files…" — attach a couple of photos
 - [ ] Test "Take photo…" — confirm webcam capture works (if laptop has a webcam)
 - [ ] Test deleting a photo from an entry
+- [ ] Test closing a new/unsaved tab — confirm the discard prompt appears
 - [ ] Test "Change folder…" in the sidebar — try pointing it somewhere new
 - [ ] Once happy: run `npm run dist` to build the real `.exe` installer
+      (not done yet — still only running via `npm start`, not installed)
 - [ ] Run the installer, confirm Start Menu entry + desktop icon work
 - [ ] Decide where your permanent data folder should live (see below)
 
@@ -68,19 +67,17 @@ _Last updated: repo structure finalized_
       source of truth; sync is a background add-on, not a requirement
       to use the app
 
-## Mobile app — PWA via GitHub Pages — BUILT, ready to deploy/test
+## Mobile app — PWA via GitHub Pages — BUILT, DEPLOYED, mostly tested
 ~~Capacitor + Android Studio plan~~ — dropped. A PWA works on both Android
 Chrome and iPhone Safari from one codebase, and avoids needing a Mac/Xcode
 for iOS entirely.
 - [x] Build the PWA (HTML/JS reused from existing app, camera via
       `<input type="file" capture="environment">`, IndexedDB for storage)
 - [x] Add a service worker + app manifest for offline/install support
-- [ ] Unzip `bench-notes-pwa.zip`, upload the 5 items to a new GitHub repo
-      (keep the `icons/` folder structure intact)
-- [ ] Enable GitHub Pages in repo Settings (Deploy from branch, root folder)
-- [ ] Open the resulting URL on your Android phone in Chrome, confirm it loads
-- [ ] Test: add an entry, attach/take a photo, search, filters, delete
-- [ ] Test installing to home screen (Chrome menu -> Add to Home Screen)
+- [x] Pushed to GitHub, Pages enabled, live and deployed
+- [x] Opened on Android phone in Chrome, confirmed it loads
+- [x] Tested: add an entry, attach/take a photo, search, filters, delete
+- [x] Test installing to home screen (Chrome menu -> Add to Home Screen)
 - [ ] Test offline: airplane mode after first load, confirm it still works
 - [ ] Send the link to Dad, test Safari -> Share -> Add to Home Screen on his iPhone
 - [ ] No sync yet — intentionally offline-only for this first version
@@ -89,10 +86,6 @@ for iOS entirely.
 - If you attach a photo while editing an entry and then hit Cancel instead
   of Save, that image file stays on disk unused rather than getting cleaned
   up automatically. Harmless, just a loose end.
-
-## Once mobile planning is done
-- [ ] Review the mobile app plan together and approve direction
-- [ ] Only then: build the mobile project (nothing built yet — ideas only until you say go)
 
 ---
 *Add to this list any time — just tell me what to add or check off.*

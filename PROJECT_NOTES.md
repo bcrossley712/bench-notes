@@ -75,8 +75,18 @@ are*, so you don't accidentally re-litigate settled decisions.
   `customerName`, `customerPhone`, `equipmentModel`, `equipmentSerial`,
   `dateReceived`, `customerRequest`, `checklist` (object keyed by item
   id, e.g. `sparkTest: {checked, note}` — see `CHECKLIST_ITEMS` in each
-  app for the current 13 items), `completed`, `createdAt`, `dateAdded`.
-  If you add a field to one app, add it to the other at the same time.
+  app for the current 13 items), `orderNumber` (permanent, assigned
+  once at creation — see note below), `completed`, `createdAt`,
+  `dateAdded`. If you add a field to one app, add it to the other at
+  the same time.
+- **`orderNumber` is assigned once, at creation, and never recomputed.**
+  Earlier versions of both apps displayed a work-order number computed
+  live from array position, which reshuffled every entry's number
+  whenever a new one was added (IndexedDB/JSON array order isn't
+  chronological). Both apps now stamp a permanent `orderNumber` on an
+  entry the moment it's created, and a one-time migration
+  (`ensureOrderNumbers`) backfills it for any entry that predates this
+  fix. Never derive the displayed number from array position again.
 - **Photo order is meaningful.** `photos[0]` is always the cover/
   thumbnail — both apps rely on this convention instead of a separate
   "cover photo" field, so reordering the array (not adding a new field)
