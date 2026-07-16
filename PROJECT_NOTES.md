@@ -26,6 +26,28 @@ lives in the README files.
 - **Batch related changes** into one pass rather than iterating file-by-file across separate turns when
   the scope is already clear.
 
+## Working agreements with this user
+
+- **Confirm before starting new builds/changes** — don't just proceed
+  on a big feature without checking scope/direction first, especially
+  when there's real ambiguity in how to design something.
+- **Confirm before packaging/sending files** — and when sending, only
+  include the files actually touched by the change, not the whole
+  repo. The user uses their own "download all" zip option when they
+  want everything.
+- **When packaging, include every file touched since the *last*
+  package** — not just the files touched in the most recent change.
+  If a file was edited a few turns ago and never actually delivered
+  (e.g. because packaging was deferred), it's still owed next time
+  "package it up" is said. Missed this once already — don't repeat it.
+- User's local path: `C:\source\bench-notes` — the repo root.
+- User is comfortable with Node/npm tooling; explanations can assume
+  that baseline rather than over-explaining basic terminal usage.
+- Preference for validating code (syntax checks, etc.) before handing
+  it off, and being upfront about anything that couldn't be verified
+  in a sandboxed environment (e.g. Electron's actual GUI, real device
+  camera/install behavior).
+
 ## What this is
 
 A troubleshooting/work-order log for a small engine repair shop, built
@@ -166,28 +188,6 @@ are*, so you don't accidentally re-litigate settled decisions.
   including home-screen install. Still outstanding: offline/
   airplane-mode test, and getting it in front of Dad's iPhone — see
   `TODO.md`.
-
-## Working agreements with this user
-
-- **Confirm before starting new builds/changes** — don't just proceed
-  on a big feature without checking scope/direction first, especially
-  when there's real ambiguity in how to design something.
-- **Confirm before packaging/sending files** — and when sending, only
-  include the files actually touched by the change, not the whole
-  repo. The user uses their own "download all" zip option when they
-  want everything.
-- **When packaging, include every file touched since the *last*
-  package** — not just the files touched in the most recent change.
-  If a file was edited a few turns ago and never actually delivered
-  (e.g. because packaging was deferred), it's still owed next time
-  "package it up" is said. Missed this once already — don't repeat it.
-- User's local path: `C:\source\bench-notes` — the repo root.
-- User is comfortable with Node/npm tooling; explanations can assume
-  that baseline rather than over-explaining basic terminal usage.
-- Preference for validating code (syntax checks, etc.) before handing
-  it off, and being upfront about anything that couldn't be verified
-  in a sandboxed environment (e.g. Electron's actual GUI, real device
-  camera/install behavior).
 
 ## What's realistically next
 
