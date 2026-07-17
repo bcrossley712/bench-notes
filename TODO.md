@@ -1,6 +1,6 @@
 # Bench Notes — Things to Do at the Computer
 
-_Last updated: PWA deployed and mostly tested; desktop confirmed launching, feature testing not started_
+_Last updated: PWA checklist/header bugs fixed, export added; OneDrive sync design finalized (shared account + merge-by-id), Azure app registration in progress_
 
 ## Repo structure — decided and built
 - [x] One repo (`bench-notes`), not two — `/pwa` and `/desktop` subfolders
@@ -13,7 +13,9 @@ _Last updated: PWA deployed and mostly tested; desktop confirmed launching, feat
 ## Desktop app (Electron) — launches, features not yet verified
 - [x] Run `npm install` / `npm start` — app window opens and looks right
 - [ ] Test creating a new entry (text fields, source tags, engine model/code)
-- [ ] Test the Service Checklist (checkbox + note → auto-fills Fix field)
+- [ ] Test the Service Checklist (checkbox + note → shows in the read-only
+      preview above the Fix field, and appears in "The Fix" on save — fixed
+      this session, was previously auto-injecting into the Fix textarea)
 - [ ] Test "Attach from files…" — attach a couple of photos
 - [ ] Test "Take photo…" — confirm webcam capture works (if laptop has a webcam)
 - [ ] Test deleting a photo from an entry
@@ -31,16 +33,17 @@ _Last updated: PWA deployed and mostly tested; desktop confirmed launching, feat
       they stay in browser storage on each device, only app code is public)
 - [ ] One PWA everywhere vs. keep Electron + PWA separate — deferred on purpose;
       build the PWA first, decide after living with both for a while
-- [x] Sync architecture — **finalized:**
+- [x] Sync architecture — **finalized (see PROJECT_NOTES.md for full detail):**
       - Your desktop (Electron): point "Change folder…" at your existing
         OneDrive-synced folder — no new code, works today
-      - Shop laptop (Electron, Dad's own Microsoft account): real OneDrive
-        API sync — needs building
-      - Phone (PWA): real OneDrive API sync — needs building
-      - All three share one canonical file format (see below) so it never
-        matters which device saved last
-      - Reconciliation: simple last-save-wins is acceptable given it's just
-        you and Dad, mostly working together or him solo
+      - Shop laptop + phone (PWA): real OneDrive API sync via Microsoft
+        Graph, signed into **your own** Microsoft account on both devices
+        (not Dad's own account) — needed so there's one shared file, not
+        two separate App Folders
+      - Reconciliation: pull-then-merge-then-push, union by entry `id`,
+        not last-save-wins whole-file overwrite — see PROJECT_NOTES.md
+      - Local-first: every core action works fully offline regardless of
+        sign-in state; sync is a background add-on only
 
 ## Shared data format (contract between Electron and PWA)
 - [x] Customer fields added to both apps identically: customerName,
@@ -55,14 +58,21 @@ _Last updated: PWA deployed and mostly tested; desktop confirmed launching, feat
       two apps from drifting into different file types over time
 
 ## OneDrive API sync — needs building (shop laptop + phone)
-- [ ] Register a Microsoft Graph "app" (free, personal Microsoft account
-      is fine) to get API access
-- [ ] Auth flow: shop laptop and phone each log into Dad's / your own
-      Microsoft account respectively, grant access to just the app's data
-      (not full OneDrive)
+- [ ] Register a Microsoft Graph "app" in Azure Portal (personal Microsoft
+      account, free) — **in progress**, Client ID pending
+- [ ] Auth flow: shop laptop and phone both sign into **your** Microsoft
+      account (same one, not Dad's) via MSAL — grants access to just the
+      app's `Files.ReadWrite.AppFolder` scope, not full OneDrive
+- [ ] Add `updatedAt` field to entry schema (per-entry last-modified
+      timestamp) — required for the merge logic below, doesn't exist yet
 - [ ] Sync trigger points: on app open, after every save, periodically
       while running — feels automatic even though it's app-triggered
       each time, not OS-level like the folder trick
+- [ ] Merge logic: pull remote → union by entry `id` with local → write
+      merged result locally → push merged result back. Never a blind
+      whole-file overwrite. Same-entry conflicts (both sides edited since
+      last common sync) get flagged as a duplicate, not silently dropped
+- [ ] UI: visible "last synced" / "not signed in" indicator
 - [ ] Must never block core functionality — local data is always the
       source of truth; sync is a background add-on, not a requirement
       to use the app
@@ -80,6 +90,11 @@ for iOS entirely.
 - [x] Test installing to home screen (Chrome menu -> Add to Home Screen)
 - [ ] Test offline: airplane mode after first load, confirm it still works
 - [ ] Send the link to Dad, test Safari -> Share -> Add to Home Screen on his iPhone
+- [x] Detail/edit sheet top bar no longer stays pinned while scrolling (fixed)
+- [x] Removed duplicate engine info from the detail header (now shown once,
+      under Equipment) (fixed)
+- [x] Manual JSON export button added (entries + photos, base64) — backup
+      safety net independent of OneDrive (added)
 - [ ] No sync yet — intentionally offline-only for this first version
 
 ## Known rough edges (not urgent, just noted)

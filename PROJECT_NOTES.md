@@ -80,16 +80,56 @@ are*, so you don't accidentally re-litigate settled decisions.
 - **GitHub Actions deploy, not the `/docs`-folder zero-config route.**
   Deliberate choice so folder names could stay sensible (`pwa`,
   `desktop`) instead of a permanently confusing "docs" label.
-- **Sync plan (not yet built):** OneDrive-based.
+- **Sync plan — design finalized, build in progress:** OneDrive-based.
   - The owner's own desktop is already OneDrive-synced → can just
     point the app's "Change folder…" at that local folder, no API
     needed.
-  - The shop laptop (Dad's own Microsoft account) and the phone PWA
-    both need real OneDrive **API** sync (Microsoft Graph) — no local
-    synced folder available to them.
-  - Reconciliation strategy: last-save-wins. Acceptable given it's
-    just the two of them, usually working together or one at a time.
-  - **Not built yet.** This is the next big piece when picked back up.
+  - The shop laptop and the phone PWA both need real OneDrive **API**
+    sync (Microsoft Graph) — no local synced folder available to them.
+  - **Considered and rejected: a custom backend** (e.g. Cloudflare
+    Worker + D1/R2, which the user could host for free on their
+    existing Cloudflare domain). Rejected specifically because the
+    user has lost data before when apps depended on a backend that
+    later became unreachable — a plain file sitting in the user's own
+    OneDrive survives even if this app's code breaks entirely; a
+    database behind a Worker doesn't offer that same guarantee.
+  - **Auth: direct Microsoft OAuth (MSAL), not Auth0.** No third-party
+    identity broker or custom backend needed — Microsoft Graph API
+    requires signing in with Microsoft's own identity platform
+    regardless, so that's used directly. Scope requested:
+    `Files.ReadWrite.AppFolder` (narrow — only sees a hidden
+    `Apps/Bench Notes` OneDrive folder, not the whole drive) +
+    `offline_access` (token refresh).
+  - **One shared Microsoft account, not one-per-person.** The owner's
+    own personal Microsoft account is what gets signed into on *all*
+    devices, including Dad's — not Dad's own account. This is
+    deliberate: two separate personal accounts would produce two
+    separate App Folders with no shared file, breaking the merge
+    model below. A single shared account sidesteps needing OneDrive
+    folder-sharing permissions across two identities.
+  - **Local-first is a hard requirement, not just an implementation
+    detail.** Every core action (create/edit entries, checklist,
+    photos) must work fully offline on whichever device it's on,
+    signed in or not. OneDrive sync is a background add-on layered on
+    top, never something the app depends on to function. UI must show
+    a visible "last synced" / "not signed in" indicator so sync state
+    is never ambiguous.
+  - **Reconciliation strategy — locked:** pull-then-merge-then-push,
+    every sync, in that order. Merge is a **union by entry `id`** (not
+    a whole-file overwrite) — an entry present on only one device
+    survives the merge either way. Requires adding an `updatedAt`
+    timestamp per entry (doesn't exist yet — only `createdAt` does
+    currently) so a true same-entry conflict (both devices edited the
+    *same* entry while disconnected from each other) can be detected.
+    When that happens, don't silently pick a winner — save the losing
+    version as a clearly-labeled duplicate ("⚠ Sync conflict") instead
+    of discarding an edit with no trace.
+  - Sync trigger points: on app open, after every save, periodically
+    while running (see `TODO.md`).
+  - **Azure app registration in progress.** Personal-Microsoft-account
+    app registration, SPA + native redirect URIs, App Folder + offline
+    scopes. Client ID pending from the user.
+  - **Not built yet — design is settled, implementation is next.**
 - **Shared entry schema.** Both apps must read/write identical field
   names so a future sync layer doesn't have to translate between two
   formats. Current entry fields: `title`, `engineModel`, `engineCode`,
@@ -99,7 +139,9 @@ are*, so you don't accidentally re-litigate settled decisions.
   id, e.g. `sparkTest: {checked, note}` — see `CHECKLIST_ITEMS` in each
   app for the current 13 items), `orderNumber` (permanent, assigned
   once at creation — see note below), `completed`, `createdAt`,
-  `dateAdded`. If you add a field to one app, add it to the other at
+  `dateAdded`. **`updatedAt` still needs to be added** (per-entry last-
+  modified timestamp) — required by the sync merge design above,
+  doesn't exist yet as of this note. If you add a field to one app, add it to the other at
   the same time.
 - **`orderNumber` is assigned once, at creation, and never recomputed.**
   Earlier versions of both apps displayed a work-order number computed
@@ -144,10 +186,19 @@ are*, so you don't accidentally re-litigate settled decisions.
   *existing* entry still closes silently (same known limitation
   above; not extended to avoid scope creep).
 - **Service Checklist** (13 fixed items mirroring the paper work order
-  sheet) live-writes into the Fix textarea as items are checked, e.g.
-  `Blade Sharpening - done`. Implementation tracks the last-generated
-  block (`checklistFixBlock`) so it can find-and-replace just its own
-  lines without touching anything the user typed manually below it.
+  sheet). Checked items render as a read-only preview ("Label - note")
+  above the Fix textarea via `checklistLines()`/`renderChecklistPreview()`
+  — never written into the editable textarea itself. The Fix textarea
+  holds only manually-typed notes. On save/display, checklist lines and
+  manual Fix text are composed together (checklist first, then manual
+  notes) purely for that render — nothing is stored pre-combined, so
+  there's no stale block to drift out of sync. Search includes checklist
+  text explicitly since it's no longer riding along inside `entry.fix`.
+  (Earlier version tracked a `checklistFixBlock` string and tried to
+  find-and-replace it in the textarea — fragile, caused duplicate
+  entries in the Fix field when the tracked block didn't exactly match
+  stored text, e.g. after a note with an embedded line break. Fixed
+  this session; same fix applied to both apps.)
 - App launches cleanly via `npm start`. Feature-level testing (entries,
   checklist, photos, tab-close confirm, folder change) and the packaged
   `.exe` install are still outstanding — see `TODO.md` for the exact
@@ -157,6 +208,13 @@ are*, so you don't accidentally re-litigate settled decisions.
 
 - Storage is IndexedDB (entries + photo blobs) — no backend, since
   GitHub Pages is static hosting only.
+- **Manual JSON export** (added this session): always-visible "Export"
+  button in the header (`exportAllData()`). Bundles every entry plus
+  all photo blobs (base64-encoded) into one timestamped downloadable
+  JSON file — a portable backup independent of OneDrive/Microsoft
+  entirely. Added specifically as a safety net before OneDrive sync
+  goes in, per the user's past experience losing data to backends that
+  became unreachable — see Sync plan above.
 - Camera capture uses `<input type="file" capture="environment">`,
   not `getUserMedia` — more reliable across iOS Safari + Android
   Chrome than a live camera stream.

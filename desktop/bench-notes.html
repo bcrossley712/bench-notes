@@ -371,6 +371,9 @@
   .checklist-check{display:flex; align-items:center; gap:8px; flex:1 1 auto; min-width:0; font-size:13.5px;}
   .checklist-check input[type="checkbox"]{width:16px; height:16px; flex:none;}
   .checklist-note{flex:1 1 40%; min-width:0; background:var(--panel); border:1px solid var(--rule); color:var(--paper-text); border-radius:4px; padding:6px 8px; font-size:12.5px;}
+  .checklist-fix-preview{display:none; background:var(--panel-raised); border:1px solid var(--rule); border-left:3px solid var(--orange); border-radius:4px; padding:8px 10px; margin-bottom:8px; font-size:13px;}
+  .checklist-fix-line{padding:2px 0;}
+  .checklist-fix-line + .checklist-fix-line{border-top:1px dashed var(--rule);}
   .modal-actions{
     display:flex; justify-content:space-between; align-items:center;
     margin-top:22px; padding-top:16px;
@@ -576,7 +579,6 @@ const CHECKLIST_ITEMS = [
   ['lubeFrontEnd','Lube Front End'], ['tirePressure','Tire Pressure'], ['cleanDeck','Clean Deck'],
   ['bladeSharpening','Blade Sharpening']
 ];
-let checklistFixBlock = ''; // tracks the auto-generated block currently at the top of the Fix field
 
 async function loadStorageInfo(){
   try{
@@ -686,7 +688,8 @@ function matchesFilters(entry, q){
   if(q){
     const hay = [entry.title, entry.engineModel, entry.engineCode, entry.causes, entry.steps, entry.fix,
       entry.partsUsed, entry.notes, entry.customerName, entry.customerPhone,
-      entry.equipmentModel, entry.equipmentSerial, entry.customerRequest].join(' ').toLowerCase();
+      entry.equipmentModel, entry.equipmentSerial, entry.customerRequest,
+      ...checklistLines(entry.checklist||{})].join(' ').toLowerCase();
     if(!hay.includes(q)) return false;
   }
   return true;
@@ -872,23 +875,27 @@ function getChecklistState(){
   return state;
 }
 
-function onChecklistChange(){
-  const state = getChecklistState();
-  const newBlock = CHECKLIST_ITEMS
-    .filter(([key])=> state[key].checked)
-    .map(([key,label])=> `${label} - ${state[key].note || 'done'}`)
-    .join('\n');
+// Builds the "Label - note" lines for currently-checked items. Single source of
+// truth used by the edit-form preview, the detail view, and search — never
+// written into the editable Fix textarea, so there's nothing to drift out of sync.
+function checklistLines(checklistState){
+  return CHECKLIST_ITEMS
+    .filter(([key])=> checklistState[key] && checklistState[key].checked)
+    .map(([key,label])=> `${label} - ${(checklistState[key].note||'').trim() || 'done'}`);
+}
 
-  const fixEl = document.getElementById('f_fix');
-  let value = fixEl.value;
-  if(checklistFixBlock && value.startsWith(checklistFixBlock)){
-    value = value.slice(checklistFixBlock.length);
-    if(value.startsWith('\n\n')) value = value.slice(2);
-    else if(value.startsWith('\n')) value = value.slice(1);
-  }
-  value = newBlock ? (value ? newBlock + '\n\n' + value : newBlock) : value;
-  fixEl.value = value;
-  checklistFixBlock = newBlock;
+function renderChecklistPreview(){
+  const el = document.getElementById('checklistFixPreview');
+  if(!el) return;
+  const lines = checklistLines(getChecklistState());
+  el.innerHTML = lines.length
+    ? lines.map(l=>`<div class="checklist-fix-line">${escapeHtml(l)}</div>`).join('')
+    : '';
+  el.style.display = lines.length ? 'block' : 'none';
+}
+
+function onChecklistChange(){
+  renderChecklistPreview();
 }
 
 // ---------- Entry form (full-screen, replaces the old popup modal) ----------
@@ -897,13 +904,6 @@ function renderEntryForm(tab){
   const e = entry || {title:'',engineModel:'',engineCode:'',source:'dad',causes:'',steps:'',fix:'',notes:'',photos:[],
     customerName:'',customerPhone:'',equipmentModel:'',equipmentSerial:'',dateReceived:'',customerRequest:'',
     partsUsed:'',checklist:{},completed:false};
-
-  const initialChecklist = e.checklist || {};
-  const initialLines = CHECKLIST_ITEMS
-    .filter(([key])=> initialChecklist[key] && initialChecklist[key].checked)
-    .map(([key,label])=> `${label} - ${(initialChecklist[key].note||'').trim() || 'done'}`);
-  checklistFixBlock = initialLines.join('\n');
-  if(!(e.fix||'').startsWith(checklistFixBlock)) checklistFixBlock = '';
 
   document.getElementById('entryView').innerHTML = `
     <div class="entry-view-inner">
@@ -1011,7 +1011,8 @@ function renderEntryForm(tab){
 
       <div class="field">
         <label>The Fix</label>
-        <textarea id="f_fix" placeholder="What actually solves it">${escapeHtml(e.fix)}</textarea>
+        <div id="checklistFixPreview" class="checklist-fix-preview"></div>
+        <textarea id="f_fix" placeholder="Notes go here — checked items above are added automatically">${escapeHtml(e.fix)}</textarea>
       </div>
 
       <div class="field">
@@ -1044,6 +1045,7 @@ function renderEntryForm(tab){
     </div>
   `;
   renderDraftPhotoGrid();
+  renderChecklistPreview();
 }
 
 async function getPhotoDataCached(filename){
@@ -1181,7 +1183,10 @@ function renderEntryDetail(tab){
         ].filter(Boolean).join('<br>')}</p>` : ''}</div>` : ''}
       ${entry.causes ? `<div class="detail-section"><div class="drawer-label">Likely Causes</div><p>${escapeHtml(entry.causes)}</p></div>` : ''}
       ${entry.steps ? `<div class="detail-section"><div class="drawer-label">Diagnostic Steps</div><p>${escapeHtml(entry.steps)}</p></div>` : ''}
-      ${entry.fix ? `<div class="detail-section"><div class="drawer-label">The Fix</div><p>${escapeHtml(entry.fix)}</p></div>` : ''}
+      ${(entry.fix || checklistLines(entry.checklist||{}).length) ? (()=>{
+          const clLines = checklistLines(entry.checklist||{});
+          return `<div class="detail-section"><div class="drawer-label">The Fix</div>${clLines.length ? `<div class="checklist-fix-preview" style="display:block; margin-bottom:${entry.fix?'10px':'0'};">${clLines.map(l=>`<div class="checklist-fix-line">${escapeHtml(l)}</div>`).join('')}</div>` : ''}${entry.fix ? `<p>${escapeHtml(entry.fix)}</p>` : ''}</div>`;
+        })() : ''}
       ${entry.partsUsed ? `<div class="detail-section"><div class="drawer-label">Parts Used</div><p>${escapeHtml(entry.partsUsed)}</p></div>` : ''}
       ${entry.notes ? `<div class="detail-section"><div class="drawer-label">Notes</div><p>${escapeHtml(entry.notes)}</p></div>` : ''}
       ${hasPhotos ? `<div class="detail-section"><div class="drawer-label">Photos</div><div class="photo-field-grid" id="detailPhotoGrid"></div></div>` : ''}
