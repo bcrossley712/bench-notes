@@ -80,12 +80,15 @@ are*, so you don't accidentally re-litigate settled decisions.
 - **GitHub Actions deploy, not the `/docs`-folder zero-config route.**
   Deliberate choice so folder names could stay sensible (`pwa`,
   `desktop`) instead of a permanently confusing "docs" label.
-- **Sync plan — design finalized, build in progress:** OneDrive-based.
+- **Sync plan — PWA side built, desktop side not started.** OneDrive-based.
   - The owner's own desktop is already OneDrive-synced → can just
     point the app's "Change folder…" at that local folder, no API
     needed.
   - The shop laptop and the phone PWA both need real OneDrive **API**
     sync (Microsoft Graph) — no local synced folder available to them.
+    **PWA is built. Desktop is not started** — desktop needs the
+    device-code flow instead of a browser redirect, genuinely
+    different code, not just a port of the PWA's.
   - **Considered and rejected: a custom backend** (e.g. Cloudflare
     Worker + D1/R2, which the user could host for free on their
     existing Cloudflare domain). Rejected specifically because the
@@ -100,6 +103,28 @@ are*, so you don't accidentally re-litigate settled decisions.
     `Files.ReadWrite.AppFolder` (narrow — only sees a hidden
     `Apps/Bench Notes` OneDrive folder, not the whole drive) +
     `offline_access` (token refresh).
+  - **MSAL library is vendored, not CDN-loaded.** Microsoft deprecated
+    the MSAL CDN as of `@azure/msal-browser@3.0`, so the actual npm
+    package's browser bundle is committed directly at
+    `pwa/vendor/msal-browser.min.js` (loaded via a plain `<script>`
+    tag, exposes a global `msal` namespace — `msal.createStandard-
+    PublicClientApplication(...)`). Keeps the zero-build-step
+    architecture intact; if MSAL ever needs upgrading, re-run
+    `npm install @azure/msal-browser` somewhere and copy
+    `node_modules/@azure/msal-browser/lib/msal-browser.min.js` over
+    the vendored copy.
+  - **Azure app registration done.** Personal-Microsoft-account app
+    registration, name "Bench Notes", Client ID
+    `a224822b-7b19-40b9-b504-8596a2add3be`. SPA platform redirect URI
+    `https://bcrossley712.github.io/bench-notes/` (confirm this
+    matches your actual GitHub Pages URL if the repo/username ever
+    changes) + native/mobile platform redirect for the future desktop
+    device-code flow, "Allow public client flows" = Yes,
+    `Files.ReadWrite.AppFolder` + `offline_access` delegated
+    permissions granted. Authority used in code: `https://login.
+    microsoftonline.com/consumers` (correct authority for a
+    Personal-Microsoft-accounts-only app registration — `common` or
+    `organizations` would be wrong here).
   - **One shared Microsoft account, not one-per-person.** The owner's
     own personal Microsoft account is what gets signed into on *all*
     devices, including Dad's — not Dad's own account. This is
@@ -109,28 +134,93 @@ are*, so you don't accidentally re-litigate settled decisions.
     folder-sharing permissions across two identities.
   - **Local-first is a hard requirement, not just an implementation
     detail.** Every core action (create/edit entries, checklist,
-    photos) must work fully offline on whichever device it's on,
-    signed in or not. OneDrive sync is a background add-on layered on
-    top, never something the app depends on to function. UI must show
-    a visible "last synced" / "not signed in" indicator so sync state
-    is never ambiguous.
-  - **Reconciliation strategy — locked:** pull-then-merge-then-push,
-    every sync, in that order. Merge is a **union by entry `id`** (not
-    a whole-file overwrite) — an entry present on only one device
-    survives the merge either way. Requires adding an `updatedAt`
-    timestamp per entry (doesn't exist yet — only `createdAt` does
-    currently) so a true same-entry conflict (both devices edited the
-    *same* entry while disconnected from each other) can be detected.
-    When that happens, don't silently pick a winner — save the losing
-    version as a clearly-labeled duplicate ("⚠ Sync conflict") instead
-    of discarding an edit with no trace.
-  - Sync trigger points: on app open, after every save, periodically
-    while running (see `TODO.md`).
-  - **Azure app registration in progress.** Personal-Microsoft-account
-    app registration, SPA + native redirect URIs, App Folder + offline
-    scopes. Client ID pending from the user.
-  - **Not built yet — design is settled, implementation is next.**
-- **Shared entry schema.** Both apps must read/write identical field
+    photos) works fully offline on whichever device it's on, signed
+    in or not. OneDrive sync is a background add-on layered on top,
+    never something the app depends on to function. The PWA header
+    shows a "last synced" / "not signed in" / "syncing" / error
+    indicator (`syncBar` in `pwa/index.html`) so sync state is never
+    ambiguous; tapping it when signed in offers to disconnect that
+    device.
+  - **Reconciliation — built and unit-tested.** Pull-then-merge-then-
+    push, every sync, in that order. Merge is a **union by entry
+    `id`** (never a whole-file overwrite) — an entry present on only
+    one device survives the merge either way. Every entry now stamps
+    `updatedAt` on create/edit (added this build — see
+    `saveEntry()`/`setCoverPhoto()` in both apps). A true same-entry
+    conflict (both devices edited the *same* entry since their last
+    common sync) never silently picks a winner — the older version is
+    kept as a new entry titled "… (⚠ sync conflict copy)" with a
+    `conflictOf` field pointing at the surviving one, so nothing is
+    silently discarded.
+  - **Deletion is a tombstone, not a removal — built.** `deleteEntry()`
+    in both apps sets `deleted: true` + bumps `updatedAt` instead of
+    removing the record. The delete competes against edits on the
+    same "newer timestamp wins" logic as any other conflict: delete an
+    entry and it disappears everywhere on next sync, unless the other
+    device edited that same entry more recently than the delete
+    happened, in which case the edit wins and the entry survives.
+    Desktop keeps tombstones in its `entries[]` array (it's serialized
+    wholesale to disk, so removing them from the array would lose them
+    on the next save) — visibility is filtered out entirely at
+    `matchesFilters()` instead of at load. PWA filters tombstones out
+    at `loadEntries()` since IndexedDB is written per-record, not as
+    one blob, so the tombstone stays safely in IndexedDB either way.
+  - **Canonical merge logic**, tested standalone before being copied
+    into the apps: `sync-build/mergeEntries.js` +
+    `sync-build/mergeEntries.test.js` (10 scenarios: new-entry-each-
+    side, no-op merge, one-sided edits, real conflicts, delete-vs-edit
+    ordering, both-sides-delete). This isn't part of either app's
+    deployed code — it's a scratch/reference copy for verifying the
+    algorithm in Node before hand-copying it into `pwa/index.html`
+    (and eventually `desktop/bench-notes.html`). **If the merge logic
+    ever needs to change, update `sync-build/mergeEntries.js` first,
+    re-run the tests, then copy the verified function into both apps**
+    — don't edit the copies in place without re-verifying against this
+    test suite, since the whole point is it's easy to get a subtle
+    edge case wrong.
+  - **Photo sync — built.** Individual files in a `photos/` subfolder
+    inside the App Folder (mirrors how desktop already stores things
+    locally: JSON + photos folder), not embedded in the entries JSON —
+    keeps sync incremental (only new/changed photos transfer) and
+    avoids the entries file growing unbounded. Runs after entries have
+    merged, using the final merged `photos[]` references to decide
+    what to upload (referenced + local + not yet remote), download
+    (referenced + remote + not yet local), and delete remotely
+    (present remotely but no longer referenced by any surviving
+    entry — this is how a tombstoned entry's old photos get cleaned
+    up). Simple upload for anything ≤4MB (Graph's ceiling), automatic
+    chunked "upload session" for anything larger.
+  - **Photo compression — built.** Every photo gets resized to max
+    1600px on its longest side and re-encoded as JPEG quality 0.82 at
+    capture time (`compressImage()` in `pwa/index.html`), before it's
+    ever written to IndexedDB — benefits local storage as much as sync
+    bandwidth. Applies identically whether the photo came from the
+    camera or the library picker (both inputs share the same
+    `handlePhotoFiles()` handler).
+  - **429 (throttling) handling — built.** `graphFetch()` wraps every
+    Graph API call; on a 429 it waits for the server's `Retry-After`
+    delay and retries once. Realistically far below anything Graph
+    would ever throttle at this app's request volume (personal 2-user
+    usage vs. Graph's ~2000 req/sec ceiling), but cheap correctness to
+    have in place regardless.
+  - **OneDrive free-tier storage (5GB) isn't a concern here** — the
+    user has a 1TB Microsoft 365 plan on the account being used.
+    Deliberately did not build a storage-quota warning (asked about,
+    declined as unnecessary).
+  - Sync trigger points: on app open, after every save/delete,
+    and every 5 minutes while the app is open (`initMsal()`/
+    `saveEntry()`/`deleteEntry()` in `pwa/index.html`).
+  - **Not yet tested against a real Microsoft account/browser.** Merge
+    logic and photo-compression logic are unit-tested; the actual
+    OAuth handshake, live Graph API calls, and redirect behavior have
+    not been — that's the next real-world test once the user tries
+    signing in.
+  - **Desktop OneDrive sync — not started.** Needs MSAL Node (or an
+    equivalent device-code flow: show a code, user enters it at
+    microsoft.com/link, poll for token) since Electron can't use an
+    embedded login window. The merge/photo-sync logic itself should
+    be portable from the PWA almost as-is once auth is wired up.
+
   names so a future sync layer doesn't have to translate between two
   formats. Current entry fields: `title`, `engineModel`, `engineCode`,
   `source`, `causes`, `steps`, `fix`, `partsUsed`, `notes`, `photos[]`,
@@ -139,9 +229,13 @@ are*, so you don't accidentally re-litigate settled decisions.
   id, e.g. `sparkTest: {checked, note}` — see `CHECKLIST_ITEMS` in each
   app for the current 13 items), `orderNumber` (permanent, assigned
   once at creation — see note below), `completed`, `createdAt`,
-  `dateAdded`. **`updatedAt` still needs to be added** (per-entry last-
-  modified timestamp) — required by the sync merge design above,
-  doesn't exist yet as of this note. If you add a field to one app, add it to the other at
+  `updatedAt` (added this build — stamped on every create/edit, see
+  `saveEntry()`; required by the sync merge logic), `dateAdded`.
+  Two more fields exist but are conditional/rare, not part of the
+  normal shape: `deleted` (tombstone flag, set by `deleteEntry()`,
+  see Sync plan above) and `conflictOf` (only present on a sync
+  conflict's duplicate copy, points at the id of the entry that won
+  the conflict). If you add a field to one app, add it to the other at
   the same time.
 - **`orderNumber` is assigned once, at creation, and never recomputed.**
   Earlier versions of both apps displayed a work-order number computed
@@ -161,6 +255,14 @@ are*, so you don't accidentally re-litigate settled decisions.
   Diagnosis" badge/filter surfaces these automatically (computed, not
   a stored flag) until a title/causes/steps/fix gets filled in, or the
   entry is marked complete.
+- **Custom modal, not native `confirm()`/`alert()`.** Both apps use
+  `showAlert(message)` / `showConfirm(message, opts)` — themed to
+  match the rest of the UI (dark panel, orange top border), return
+  Promises so call sites `await` them. There should be zero native
+  browser `confirm()`/`alert()` calls left in either app; if you're
+  about to add one, use these instead. Same implementation duplicated
+  in both apps (`#modalOverlay`/`#modalMessage`/`#modalActions` in the
+  HTML, functions near the top of each `<script>` block).
 
 ## Desktop app specifics
 

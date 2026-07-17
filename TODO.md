@@ -1,6 +1,6 @@
 # Bench Notes — Things to Do at the Computer
 
-_Last updated: PWA checklist/header bugs fixed, export added; OneDrive sync design finalized (shared account + merge-by-id), Azure app registration in progress_
+_Last updated: PWA OneDrive sync built (auth, entry merge, photo sync + compression) — not yet tested against a real Microsoft account. Desktop sync not started. Tombstone deletion + custom modal built in both apps._
 
 ## Repo structure — decided and built
 - [x] One repo (`bench-notes`), not two — `/pwa` and `/desktop` subfolders
@@ -21,6 +21,13 @@ _Last updated: PWA checklist/header bugs fixed, export added; OneDrive sync desi
 - [ ] Test deleting a photo from an entry
 - [ ] Test closing a new/unsaved tab — confirm the discard prompt appears
 - [ ] Test "Change folder…" in the sidebar — try pointing it somewhere new
+- [ ] Test the custom confirm/alert popups (delete, discard unsaved entry,
+      title-required nudge, storage-folder-changed notice) — replaced the
+      native browser ones this session
+- [ ] Test deleting an entry, confirm the board count / stats / engine
+      filter dropdown all correctly stop showing it (tombstone-based
+      deletion added this session — deleted entries stay in the underlying
+      data for sync purposes but should be invisible everywhere in the UI)
 - [ ] Once happy: run `npm run dist` to build the real `.exe` installer
       (not done yet — still only running via `npm start`, not installed)
 - [ ] Run the installer, confirm Start Menu entry + desktop icon work
@@ -51,31 +58,51 @@ _Last updated: PWA checklist/header bugs fixed, export added; OneDrive sync desi
       customerRequest (kept separate from title/symptom, as decided)
 - [ ] Define + document: `bench_notes_data.json` (array of entries, same
       field names on both apps) + a `photos/` folder of real image files,
-      named to match filenames referenced in the JSON
+      named to match filenames referenced in the JSON. Note: the OneDrive
+      App Folder now mirrors this exact shape (`bench-notes-data.json` +
+      `photos/`) for the same reason — see PROJECT_NOTES.md Sync plan
 - [ ] Add a `schemaVersion` field for future-proofing
 - [ ] PWA must serialize IndexedDB contents to this exact shape when syncing
       (not its own invented format) — this is the piece that prevents the
       two apps from drifting into different file types over time
 
-## OneDrive API sync — needs building (shop laptop + phone)
-- [ ] Register a Microsoft Graph "app" in Azure Portal (personal Microsoft
-      account, free) — **in progress**, Client ID pending
-- [ ] Auth flow: shop laptop and phone both sign into **your** Microsoft
-      account (same one, not Dad's) via MSAL — grants access to just the
-      app's `Files.ReadWrite.AppFolder` scope, not full OneDrive
-- [ ] Add `updatedAt` field to entry schema (per-entry last-modified
-      timestamp) — required for the merge logic below, doesn't exist yet
-- [ ] Sync trigger points: on app open, after every save, periodically
-      while running — feels automatic even though it's app-triggered
-      each time, not OS-level like the folder trick
-- [ ] Merge logic: pull remote → union by entry `id` with local → write
-      merged result locally → push merged result back. Never a blind
-      whole-file overwrite. Same-entry conflicts (both sides edited since
-      last common sync) get flagged as a duplicate, not silently dropped
-- [ ] UI: visible "last synced" / "not signed in" indicator
+## OneDrive API sync — PWA built (untested), desktop not started
+- [x] Register a Microsoft Graph "app" in Azure Portal — done. Name
+      "Bench Notes", Client ID `a224822b-7b19-40b9-b504-8596a2add3be`,
+      personal-Microsoft-accounts-only, `Files.ReadWrite.AppFolder` +
+      `offline_access` granted, SPA + native redirect URIs added,
+      public client flows enabled
+- [x] Auth flow (PWA): MSAL redirect flow, signed into **your** Microsoft
+      account — built, using vendored `pwa/vendor/msal-browser.min.js`
+      (Microsoft deprecated the MSAL CDN, so the actual npm package file
+      is committed to the repo instead)
+- [x] `updatedAt` field added to entry schema, stamped on every create/edit
+- [x] Sync trigger points (PWA): on app open, after every save/delete,
+      every 5 min while open
+- [x] Merge logic: pull remote → union by entry `id` with local → write
+      merged result locally → push merged result back — built, unit-tested
+      in `sync-build/mergeEntries.js` before being copied into the app
+- [x] Deletion sync: tombstone-based (`deleted:true` + `updatedAt`), not a
+      hard delete — competes against edits on the same newer-wins logic
+- [x] UI: "last synced" / "not signed in" / "syncing" / error indicator
+      (PWA `syncBar`) — tap the status text when signed in to disconnect
+- [x] Photo sync (PWA): individual files in a `photos/` App Folder
+      subfolder, incremental (only new/changed photos transfer), chunked
+      upload for anything over Graph's 4MB simple-upload ceiling
+- [x] Photo compression: resize to max 1600px + JPEG re-encode at capture
+      time, before storing locally at all — applies to both "Take Photo"
+      and "Choose Existing"
+- [x] 429/throttling handling: waits for `Retry-After`, retries once
+- [ ] **Not yet tested against a real Microsoft account or real browser.**
+      First real test: sign in on your phone and see what actually happens
+- [ ] Desktop OneDrive sync — **not started.** Needs a device-code flow
+      (Electron can't use an embedded login window) instead of the PWA's
+      browser redirect — different auth code, but merge/photo-sync logic
+      should carry over close to as-is
 - [ ] Must never block core functionality — local data is always the
       source of truth; sync is a background add-on, not a requirement
-      to use the app
+      to use the app (true today — confirm it stays true once desktop
+      sync is added)
 
 ## Mobile app — PWA via GitHub Pages — BUILT, DEPLOYED, mostly tested
 ~~Capacitor + Android Studio plan~~ — dropped. A PWA works on both Android
@@ -95,7 +122,21 @@ for iOS entirely.
       under Equipment) (fixed)
 - [x] Manual JSON export button added (entries + photos, base64) — backup
       safety net independent of OneDrive (added)
-- [ ] No sync yet — intentionally offline-only for this first version
+- [x] OneDrive sync built (see "OneDrive API sync" section above) — not
+      yet tested against a real account
+- [ ] Test: sign in on your phone, confirm an entry made on phone shows up
+      after syncing on another signed-in device (once desktop sync exists,
+      or by checking the raw file at onedrive.com/Apps/Bench Notes in the
+      meantime)
+- [ ] Test: delete an entry, confirm it disappears on the other device too
+      after both have synced
+- [ ] Test: take/attach several photos, confirm they show up in the
+      OneDrive `Apps/Bench Notes/photos` folder, and confirm file sizes
+      look meaningfully smaller than the original camera photos (compression
+      working)
+- [ ] Test: custom confirm/alert popups (delete, discard unsaved entry,
+      title-required nudge) look right and behave right — replaced the
+      native browser ones this session
 
 ## Known rough edges (not urgent, just noted)
 - If you attach a photo while editing an entry and then hit Cancel instead

@@ -11,6 +11,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="vendor/msal-browser.min.js"></script>
 <style>
   :root{
     --bg: #1A1A1C;
@@ -77,6 +78,24 @@
     background:#1A1A1C; color:var(--paper-text); border:none;
     font-family:'Oswald',sans-serif; font-weight:600; text-transform:uppercase;
     font-size:12px; padding:6px 12px; border-radius:3px; cursor:pointer;
+  }
+
+  #syncBar{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    background:var(--panel-raised); border-bottom:1px solid var(--rule);
+    font-size:12px; padding:8px 16px; font-family:'IBM Plex Sans',sans-serif; color:var(--muted);
+  }
+  #syncBar .dot{width:7px; height:7px; border-radius:50%; background:var(--muted); flex:none; display:inline-block; margin-right:6px;}
+  #syncBar #syncStatusText{cursor:default;}
+  #syncBar.state-synced #syncStatusText{cursor:pointer;}
+  #syncBar.state-synced #syncStatusText:hover{text-decoration:underline;}
+  #syncBar.state-synced .dot{background:#4CAF50;}
+  #syncBar.state-syncing .dot{background:var(--orange);}
+  #syncBar.state-error .dot{background:var(--danger);}
+  #syncBar button{
+    background:none; border:1px solid var(--rule); color:var(--paper-text);
+    font-family:'Oswald',sans-serif; font-weight:600; text-transform:uppercase;
+    font-size:11px; padding:5px 10px; border-radius:4px; cursor:pointer; flex:none;
   }
 
   .search-wrap{padding:12px 16px 0;}
@@ -180,6 +199,16 @@
   .lightbox-counter{position:absolute; top:16px; left:50%; transform:translateX(-50%); color:#fff; font-family:'IBM Plex Mono',monospace; font-size:12px; background:#000000a0; padding:4px 10px; border-radius:10px;}
   .lightbox-cover-btn{position:absolute; bottom:16px; left:50%; transform:translateX(-50%); background:var(--orange); color:#1A1A1C; border:none; font-family:'Oswald',sans-serif; font-weight:600; text-transform:uppercase; font-size:12px; padding:8px 14px; border-radius:6px;}
 
+  .modal-overlay{position:fixed; inset:0; background:#000000c0; display:none; align-items:center; justify-content:center; z-index:80; padding:20px;}
+  .modal-overlay.open{display:flex;}
+  .modal-box{background:var(--panel); border:1px solid var(--rule); border-top:3px solid var(--orange); border-radius:8px; max-width:360px; width:100%; padding:20px; box-shadow:0 12px 32px #00000060;}
+  .modal-message{font-size:14.5px; line-height:1.5; margin-bottom:18px; white-space:pre-wrap;}
+  .modal-actions{display:flex; gap:10px; justify-content:flex-end;}
+  .modal-btn{padding:10px 16px; border-radius:6px; font-family:'Oswald',sans-serif; text-transform:uppercase; font-size:12.5px; font-weight:600; border:none; cursor:pointer;}
+  .modal-btn.cancel{background:transparent; color:var(--muted); border:1px solid var(--rule);}
+  .modal-btn.confirm{background:var(--orange); color:#1A1A1C;}
+  .modal-btn.confirm.danger{background:var(--danger); color:#fff;}
+
   .checklist-grid{display:flex; flex-direction:column; gap:8px;}
   .checklist-row{display:flex; align-items:center; gap:10px; background:var(--panel-raised); border:1px solid var(--rule); border-radius:6px; padding:8px 10px;}
   .checklist-check{display:flex; align-items:center; gap:8px; flex:1 1 auto; min-width:0; font-size:13.5px;}
@@ -206,6 +235,11 @@
     <button id="installBtn">Install</button>
   </div>
 </header>
+
+<div id="syncBar" class="state-offline">
+  <span><span class="dot"></span><span id="syncStatusText" onclick="onSyncStatusClick()">Not signed in</span></span>
+  <button id="syncActionBtn" onclick="onSyncButtonClick()">Connect OneDrive</button>
+</div>
 
 <div id="iosBanner">
   Add to your Home Screen: tap Share, then "Add to Home Screen".
@@ -246,10 +280,489 @@
   <button type="button" class="lightbox-cover-btn" id="lightboxCoverBtn" onclick="setCoverPhoto(event)">Set as cover</button>
 </div>
 
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box">
+    <div class="modal-message" id="modalMessage"></div>
+    <div class="modal-actions" id="modalActions"></div>
+  </div>
+</div>
+
 <input type="file" id="hiddenPhotoInput" accept="image/*" capture="environment" multiple style="display:none">
 <input type="file" id="hiddenLibraryInput" accept="image/*" multiple style="display:none">
 
 <script>
+// ---------- Custom modal (replaces native alert()/confirm()) ----------
+function showAlert(message, opts){
+  opts = opts || {};
+  return new Promise(resolve=>{
+    const overlay = document.getElementById('modalOverlay');
+    document.getElementById('modalMessage').textContent = message;
+    const actions = document.getElementById('modalActions');
+    actions.innerHTML = '';
+    const okBtn = document.createElement('button');
+    okBtn.className = 'modal-btn confirm';
+    okBtn.textContent = opts.okLabel || 'OK';
+    okBtn.onclick = ()=>{ overlay.classList.remove('open'); resolve(); };
+    actions.appendChild(okBtn);
+    overlay.classList.add('open');
+    okBtn.focus();
+  });
+}
+
+function showConfirm(message, opts){
+  opts = opts || {};
+  return new Promise(resolve=>{
+    const overlay = document.getElementById('modalOverlay');
+    document.getElementById('modalMessage').textContent = message;
+    const actions = document.getElementById('modalActions');
+    actions.innerHTML = '';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'modal-btn cancel';
+    cancelBtn.textContent = opts.cancelLabel || 'Cancel';
+    cancelBtn.onclick = ()=>{ overlay.classList.remove('open'); resolve(false); };
+    const confirmBtn = document.createElement('button');
+    confirmBtn.className = 'modal-btn confirm' + (opts.danger === false ? '' : ' danger');
+    confirmBtn.textContent = opts.confirmLabel || 'Confirm';
+    confirmBtn.onclick = ()=>{ overlay.classList.remove('open'); resolve(true); };
+    actions.appendChild(cancelBtn);
+    actions.appendChild(confirmBtn);
+    overlay.classList.add('open');
+    confirmBtn.focus();
+  });
+}
+
+// ---------- OneDrive sync ----------
+// Design (see PROJECT_NOTES.md "Sync plan"): sign in with a single shared
+// Microsoft account across all devices; read/write one JSON file inside
+// OneDrive's App Folder (Files.ReadWrite.AppFolder scope — this app only
+// ever sees its own hidden Apps/Bench Notes folder, nothing else in the
+// account). Every sync pulls the remote file, merges it with local data by
+// entry id (never a blind overwrite), writes the merged result back to
+// both IndexedDB and OneDrive. Local data is always fully usable offline —
+// sync is a background add-on, never a requirement to use the app.
+//
+// Known scope decision for this pass: photos are NOT included in sync yet.
+// Only entry text/checklist data syncs. Photos stay local-only per device
+// until a follow-up build (they need a different transfer approach than
+// embedding base64 in the same JSON — see PROJECT_NOTES.md).
+
+const MSAL_CLIENT_ID = 'a224822b-7b19-40b9-b504-8596a2add3be';
+const ONEDRIVE_SCOPES = ['Files.ReadWrite.AppFolder'];
+const APP_FOLDER_FILE = 'bench-notes-data.json';
+const SYNC_BASELINE_KEY = 'bn_sync_baseline';
+const SYNC_LAST_KEY = 'bn_last_synced';
+
+let msalInstance = null;
+let syncInProgress = false;
+let periodicSyncTimer = null;
+
+// Same merge algorithm as sync-build/mergeEntries.js (kept in sync by hand —
+// see that file's test suite for the scenarios this logic is verified
+// against before being copied here).
+function mergeEntries(localEntries, remoteEntries, baseline){
+  baseline = baseline || {};
+  const localById = new Map(localEntries.map(e => [e.id, e]));
+  const remoteById = new Map(remoteEntries.map(e => [e.id, e]));
+  const allIds = new Set([...localById.keys(), ...remoteById.keys()]);
+  const merged = [];
+  const conflicts = [];
+  const newBaseline = {};
+
+  for(const id of allIds){
+    const local = localById.get(id);
+    const remote = remoteById.get(id);
+
+    if(local && !remote){
+      merged.push(local);
+      newBaseline[id] = local.updatedAt;
+      continue;
+    }
+    if(remote && !local){
+      merged.push(remote);
+      newBaseline[id] = remote.updatedAt;
+      continue;
+    }
+
+    const baselineTime = baseline[id];
+    const localChanged = baselineTime === undefined || (local.updatedAt||0) > baselineTime;
+    const remoteChanged = baselineTime === undefined || (remote.updatedAt||0) > baselineTime;
+
+    if(local.deleted || remote.deleted){
+      const winner = (local.updatedAt||0) >= (remote.updatedAt||0) ? local : remote;
+      merged.push(winner);
+      newBaseline[id] = winner.updatedAt;
+      continue;
+    }
+
+    if(localChanged && remoteChanged && (local.updatedAt !== remote.updatedAt)){
+      const [newer, older] = (local.updatedAt >= remote.updatedAt) ? [local, remote] : [remote, local];
+      const duplicateId = older.id + '-conflict-' + Date.now();
+      const duplicate = {
+        ...older, id: duplicateId,
+        title: (older.title || older.customerName || 'Untitled entry') + ' (⚠ sync conflict copy)',
+        conflictOf: newer.id, updatedAt: older.updatedAt
+      };
+      merged.push(newer, duplicate);
+      newBaseline[newer.id] = newer.updatedAt;
+      newBaseline[duplicateId] = duplicate.updatedAt;
+      conflicts.push({id, keptId: newer.id, duplicateId});
+      continue;
+    }
+
+    const winner = (local.updatedAt||0) >= (remote.updatedAt||0) ? local : remote;
+    merged.push(winner);
+    newBaseline[id] = winner.updatedAt;
+  }
+
+  return {merged, conflicts, newBaseline};
+}
+
+async function initMsal(){
+  try{
+    msalInstance = await msal.createStandardPublicClientApplication({
+      auth: {
+        clientId: MSAL_CLIENT_ID,
+        authority: 'https://login.microsoftonline.com/consumers',
+        redirectUri: window.location.origin + window.location.pathname
+      },
+      cache: { cacheLocation: 'localStorage' } // survives closing/reopening the installed PWA
+    });
+  }catch(err){
+    console.error('MSAL init failed', err);
+    setSyncBar('error', 'Sign-in unavailable');
+    return;
+  }
+
+  let redirectResult = null;
+  try{
+    redirectResult = await msalInstance.handleRedirectPromise();
+  }catch(err){
+    console.error('Redirect handling failed', err);
+  }
+
+  if(redirectResult && redirectResult.account){
+    msalInstance.setActiveAccount(redirectResult.account);
+  } else {
+    const accounts = msalInstance.getAllAccounts();
+    if(accounts.length > 0) msalInstance.setActiveAccount(accounts[0]);
+  }
+
+  updateSyncBarForState();
+  if(isSignedIn()){
+    syncNow();
+    if(periodicSyncTimer) clearInterval(periodicSyncTimer);
+    periodicSyncTimer = setInterval(syncNow, 5 * 60 * 1000); // every 5 min while app is open
+  }
+}
+
+function isSignedIn(){
+  return !!(msalInstance && msalInstance.getActiveAccount());
+}
+
+function onSyncButtonClick(){
+  if(isSignedIn()){
+    syncNow();
+  } else {
+    signInOneDrive();
+  }
+}
+
+async function onSyncStatusClick(){
+  if(!isSignedIn()) return;
+  const ok = await showConfirm('Disconnect OneDrive on this device? Your local entries stay right here — this just stops this device from syncing until you sign in again.', {confirmLabel:'Disconnect', danger:false});
+  if(ok) signOutOneDrive();
+}
+
+async function signInOneDrive(){
+  if(!msalInstance) return;
+  try{
+    await msalInstance.loginRedirect({ scopes: ONEDRIVE_SCOPES });
+    // Page navigates away here; handleRedirectPromise() on reload continues the flow.
+  }catch(err){
+    console.error('Sign-in failed', err);
+    setSyncBar('error', 'Sign-in failed');
+  }
+}
+
+async function signOutOneDrive(){
+  if(!msalInstance) return;
+  if(periodicSyncTimer){ clearInterval(periodicSyncTimer); periodicSyncTimer = null; }
+  await msalInstance.logoutRedirect();
+}
+
+async function getAccessToken(){
+  const account = msalInstance.getActiveAccount();
+  if(!account) throw new Error('Not signed in');
+  try{
+    const result = await msalInstance.acquireTokenSilent({ scopes: ONEDRIVE_SCOPES, account });
+    return result.accessToken;
+  }catch(err){
+    if(err instanceof msal.InteractionRequiredAuthError){
+      await msalInstance.acquireTokenRedirect({ scopes: ONEDRIVE_SCOPES });
+      return null; // page redirects away
+    }
+    throw err;
+  }
+}
+
+// Retries once after the server-specified delay on HTTP 429 (throttled),
+// per Microsoft's Graph throttling guidance. Essentially never expected to
+// trigger at this app's request volume — cheap correctness to have anyway.
+async function graphFetch(url, options){
+  let res = await fetch(url, options);
+  if(res.status === 429){
+    const retryAfter = Number(res.headers.get('Retry-After')) || 2;
+    await new Promise(r => setTimeout(r, retryAfter * 1000));
+    res = await fetch(url, options);
+  }
+  return res;
+}
+
+async function fetchRemoteFile(){
+  const token = await getAccessToken();
+  if(!token) return null; // redirecting for interactive auth
+  const res = await graphFetch(
+    `https://graph.microsoft.com/v1.0/me/drive/special/approot:/${APP_FOLDER_FILE}:/content`,
+    { headers: { Authorization: 'Bearer ' + token } }
+  );
+  if(res.status === 404){
+    return { entries: [] }; // nothing synced from any device yet
+  }
+  if(!res.ok){
+    throw new Error('OneDrive read failed (' + res.status + ')');
+  }
+  return await res.json();
+}
+
+async function pushRemoteFile(payload){
+  const token = await getAccessToken();
+  if(!token) return false; // redirecting for interactive auth
+  const res = await graphFetch(
+    `https://graph.microsoft.com/v1.0/me/drive/special/approot:/${APP_FOLDER_FILE}:/content`,
+    {
+      method: 'PUT',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }
+  );
+  if(!res.ok){
+    throw new Error('OneDrive write failed (' + res.status + ')');
+  }
+  return true;
+}
+
+// ---------- Photo sync ----------
+// Individual files in a photos/ subfolder inside the App Folder (mirrors
+// how desktop already stores things locally: JSON + photos folder), not
+// embedded in the same JSON as entries. This makes sync incremental — only
+// new/changed photos transfer, not the whole photo library every time.
+const APP_FOLDER_PHOTOS_PATH = 'photos';
+const SIMPLE_UPLOAD_MAX_BYTES = 4 * 1024 * 1024; // Graph's one-shot upload ceiling
+const UPLOAD_CHUNK_SIZE = 3200 * 1024; // 3.2MB — a multiple of 320 KiB as Microsoft recommends
+
+async function listRemotePhotoFilenames(){
+  const token = await getAccessToken();
+  if(!token) return null;
+  let url = `https://graph.microsoft.com/v1.0/me/drive/special/approot:/${APP_FOLDER_PHOTOS_PATH}:/children?$select=name&$top=200`;
+  const names = new Set();
+  while(url){
+    const res = await graphFetch(url, { headers: { Authorization: 'Bearer ' + token } });
+    if(res.status === 404){
+      return names; // photos/ folder doesn't exist yet — nothing uploaded from any device so far
+    }
+    if(!res.ok) throw new Error('OneDrive photo listing failed (' + res.status + ')');
+    const data = await res.json();
+    (data.value || []).forEach(item => names.add(item.name));
+    url = data['@odata.nextLink'] || null;
+  }
+  return names;
+}
+
+async function uploadPhotoBlob(filename, blob){
+  const token = await getAccessToken();
+  if(!token) return false;
+  const path = `${APP_FOLDER_PHOTOS_PATH}/${filename}`;
+
+  if(blob.size <= SIMPLE_UPLOAD_MAX_BYTES){
+    const res = await graphFetch(
+      `https://graph.microsoft.com/v1.0/me/drive/special/approot:/${path}:/content`,
+      { method: 'PUT', headers: { Authorization: 'Bearer ' + token, 'Content-Type': blob.type || 'image/jpeg' }, body: blob }
+    );
+    if(!res.ok) throw new Error('Photo upload failed (' + res.status + ')');
+    return true;
+  }
+
+  // Bigger than the simple-upload ceiling (rare after compression, but
+  // possible): chunked upload session instead of a single PUT.
+  const sessionRes = await graphFetch(
+    `https://graph.microsoft.com/v1.0/me/drive/special/approot:/${path}:/createUploadSession`,
+    {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': 'replace' } })
+    }
+  );
+  if(!sessionRes.ok) throw new Error('Could not start photo upload session (' + sessionRes.status + ')');
+  const { uploadUrl } = await sessionRes.json();
+
+  let offset = 0;
+  while(offset < blob.size){
+    const end = Math.min(offset + UPLOAD_CHUNK_SIZE, blob.size);
+    const chunk = blob.slice(offset, end);
+    const chunkRes = await graphFetch(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Length': String(end - offset),
+        'Content-Range': `bytes ${offset}-${end - 1}/${blob.size}`
+      },
+      body: chunk
+    });
+    if(!chunkRes.ok && chunkRes.status !== 202){
+      throw new Error('Photo upload chunk failed (' + chunkRes.status + ')');
+    }
+    offset = end;
+  }
+  return true;
+}
+
+async function downloadPhotoBlob(filename){
+  const token = await getAccessToken();
+  if(!token) return null;
+  const res = await graphFetch(
+    `https://graph.microsoft.com/v1.0/me/drive/special/approot:/${APP_FOLDER_PHOTOS_PATH}/${filename}:/content`,
+    { headers: { Authorization: 'Bearer ' + token } }
+  );
+  if(!res.ok) throw new Error('Photo download failed (' + res.status + ')');
+  return await res.blob();
+}
+
+async function deleteRemotePhoto(filename){
+  const token = await getAccessToken();
+  if(!token) return false;
+  const res = await graphFetch(
+    `https://graph.microsoft.com/v1.0/me/drive/special/approot:/${APP_FOLDER_PHOTOS_PATH}/${filename}`,
+    { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } }
+  );
+  if(!res.ok && res.status !== 404) throw new Error('Photo delete failed (' + res.status + ')');
+  return true;
+}
+
+// Called after entries have merged, so `mergedEntries` reflects the final,
+// post-merge set of photos[] references across both devices (a tombstoned
+// entry already has photos:[] cleared, so its old photos naturally fall out
+// of the "referenced" set below and get cleaned up remotely).
+async function syncPhotos(mergedEntries){
+  const referenced = new Set();
+  mergedEntries.forEach(e => (e.photos || []).forEach(id => referenced.add(id)));
+
+  const remoteNames = await listRemotePhotoFilenames();
+  if(remoteNames === null) return; // redirected for auth mid-flow
+
+  const localPhotoRecords = await idbGetAll('photos');
+  const localById = new Map(localPhotoRecords.map(p => [p.id, p]));
+
+  // Upload: referenced, exists locally, not yet on OneDrive.
+  for(const id of referenced){
+    const filename = id + '.jpg';
+    if(remoteNames.has(filename)) continue;
+    const record = localById.get(id);
+    if(!record) continue; // referenced but this device doesn't have it — handled by download below
+    await uploadPhotoBlob(filename, record.blob);
+  }
+
+  // Download: referenced, exists on OneDrive, missing on this device.
+  for(const id of referenced){
+    const filename = id + '.jpg';
+    if(localById.has(id)) continue;
+    if(!remoteNames.has(filename)) continue;
+    const blob = await downloadPhotoBlob(filename);
+    if(blob) await idbPut('photos', { id, blob, mimeType: 'image/jpeg', filename });
+  }
+
+  // Clean up: exists on OneDrive, no longer referenced by any surviving entry.
+  for(const name of remoteNames){
+    const id = name.replace(/\.jpg$/, '');
+    if(!referenced.has(id)){
+      await deleteRemotePhoto(name);
+    }
+  }
+}
+
+async function syncNow(){
+  if(!isSignedIn() || syncInProgress) return;
+  syncInProgress = true;
+  setSyncBar('syncing', 'Syncing…');
+  try{
+    const localRaw = await idbGetAll('entries'); // includes tombstones
+    const storedBaseline = JSON.parse(localStorage.getItem(SYNC_BASELINE_KEY) || '{}');
+
+    const remotePayload = await fetchRemoteFile();
+    if(remotePayload === null){ syncInProgress = false; return; } // redirected for auth
+
+    const { merged, newBaseline } = mergeEntries(localRaw, remotePayload.entries || [], storedBaseline);
+
+    for(const entry of merged){
+      await idbPut('entries', entry);
+    }
+
+    const pushed = await pushRemoteFile({ entries: merged, syncedAt: Date.now() });
+    if(!pushed){ syncInProgress = false; return; } // redirected for auth
+
+    await syncPhotos(merged);
+
+    localStorage.setItem(SYNC_BASELINE_KEY, JSON.stringify(newBaseline));
+    localStorage.setItem(SYNC_LAST_KEY, String(Date.now()));
+
+    await loadEntries(); // refresh the visible board from IndexedDB
+    setSyncBar('synced');
+  }catch(err){
+    console.error('Sync failed', err);
+    setSyncBar('error', 'Sync failed — will retry');
+  }finally{
+    syncInProgress = false;
+  }
+}
+
+function formatLastSynced(){
+  const raw = localStorage.getItem(SYNC_LAST_KEY);
+  if(!raw) return 'Never synced';
+  const diffMs = Date.now() - Number(raw);
+  const mins = Math.round(diffMs / 60000);
+  if(mins < 1) return 'Synced just now';
+  if(mins < 60) return `Synced ${mins} min ago`;
+  const hrs = Math.round(mins/60);
+  if(hrs < 24) return `Synced ${hrs}h ago`;
+  return `Synced ${Math.round(hrs/24)}d ago`;
+}
+
+function setSyncBar(state, message){
+  const bar = document.getElementById('syncBar');
+  const text = document.getElementById('syncStatusText');
+  const btn = document.getElementById('syncActionBtn');
+  bar.className = 'state-' + state;
+  if(state === 'synced'){
+    text.textContent = formatLastSynced();
+    btn.textContent = 'Sync now';
+  } else if(state === 'syncing'){
+    text.textContent = message || 'Syncing…';
+    btn.textContent = 'Sync now';
+  } else if(state === 'error'){
+    text.textContent = message || 'Sync error';
+    btn.textContent = 'Retry';
+  } else {
+    text.textContent = 'Not signed in';
+    btn.textContent = 'Connect OneDrive';
+  }
+}
+
+function updateSyncBarForState(){
+  if(isSignedIn()){
+    setSyncBar(localStorage.getItem(SYNC_LAST_KEY) ? 'synced' : 'syncing');
+  } else {
+    setSyncBar('offline');
+  }
+}
+
 // ---------- IndexedDB ----------
 const DB_NAME = 'benchNotesDB';
 const DB_VERSION = 1;
@@ -356,7 +869,7 @@ async function exportAllData(){
     URL.revokeObjectURL(url);
   }catch(err){
     console.error('Export failed', err);
-    alert('Export failed: ' + (err && err.message ? err.message : err));
+    await showAlert('Export failed: ' + (err && err.message ? err.message : err));
   }finally{
     btn.textContent = originalLabel;
     btn.disabled = false;
@@ -398,13 +911,14 @@ function applyView(view){
     editingId = null;
   }
 }
-window.addEventListener('popstate', (event)=>{
+window.addEventListener('popstate', async (event)=>{
   const goingTo = (event.state && event.state.view) || 'board';
   const sheetOpen = document.getElementById('sheetOverlay').classList.contains('open');
   if(sheetIsNewUnsaved && goingTo !== 'sheet' && sheetOpen && !document.getElementById('lightboxOverlay').classList.contains('open')){
     // cancel the visual back so we can confirm first
     history.pushState({view:'sheet'}, '');
-    if(confirm('Discard this new work order? Nothing will be saved.')){
+    const ok = await showConfirm('Discard this new work order? Nothing will be saved.', {confirmLabel:'Discard'});
+    if(ok){
       sheetIsNewUnsaved = false;
       history.back();
     }
@@ -418,7 +932,10 @@ function photoId(){ return 'p' + Date.now() + Math.floor(Math.random()*100000); 
 
 async function loadEntries(){
   try{
-    entries = await idbGetAll('entries');
+    // idbGetAll returns tombstones too (deleted:true records) — those exist
+    // purely so a future sync can propagate the deletion; the visible app
+    // never shows them.
+    entries = (await idbGetAll('entries')).filter(e => !e.deleted);
   }catch(e){
     console.error('Load failed', e);
     entries = [];
@@ -730,11 +1247,53 @@ function triggerLibraryInput(){
   document.getElementById('hiddenLibraryInput').click();
 }
 
+// Resize/compress before a photo ever gets stored — a reference photo of an
+// engine part doesn't need full 12MP camera resolution, and this benefits
+// local IndexedDB storage as much as it does OneDrive sync bandwidth.
+async function compressImage(file, maxDimension, quality){
+  maxDimension = maxDimension || 1600;
+  quality = quality || 0.82;
+  try{
+    const dataUrl = await new Promise((resolve, reject)=>{
+      const reader = new FileReader();
+      reader.onload = ()=>resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    const img = await new Promise((resolve, reject)=>{
+      const image = new Image();
+      image.onload = ()=>resolve(image);
+      image.onerror = reject;
+      image.src = dataUrl;
+    });
+    let {width, height} = img;
+    if(width > maxDimension || height > maxDimension){
+      if(width >= height){
+        height = Math.round(height * (maxDimension / width));
+        width = maxDimension;
+      } else {
+        width = Math.round(width * (maxDimension / height));
+        height = maxDimension;
+      }
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+    return blob || file; // fall back to the original if canvas encoding somehow fails
+  }catch(err){
+    console.error('Photo compression failed, using original', err);
+    return file;
+  }
+}
+
 async function handlePhotoFiles(event){
   const files = Array.from(event.target.files || []);
   for(const file of files){
     const id = photoId();
-    await idbPut('photos', {id, blob: file, mimeType: file.type, filename: id + '_' + file.name});
+    const blob = await compressImage(file);
+    await idbPut('photos', {id, blob, mimeType: 'image/jpeg', filename: id + '.jpg'});
     draftPhotos.push(id);
   }
   event.target.value = '';
@@ -769,7 +1328,7 @@ async function saveEntry(){
   const title = document.getElementById('f_title').value.trim();
   const customerName = document.getElementById('f_customerName').value.trim();
   if(!title && !customerName){
-    alert('Add at least a customer name or a symptom title so you can find this again.');
+    await showAlert('Add at least a customer name or a symptom title so you can find this again.');
     return;
   }
 
@@ -796,11 +1355,11 @@ async function saveEntry(){
   let entry;
   if(editingId){
     const existing = entries.find(en=>en.id===editingId);
-    entry = {...existing, ...data};
+    entry = {...existing, ...data, updatedAt: Date.now()};
   } else {
     const nextNum = entries.reduce((max,e)=> e.orderNumber ? Math.max(max,e.orderNumber) : max, 0) + 1;
     entry = {
-      id: uid(), ...data, orderNumber: nextNum, createdAt: Date.now(),
+      id: uid(), ...data, orderNumber: nextNum, createdAt: Date.now(), updatedAt: Date.now(),
       dateAdded: new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})
     };
   }
@@ -808,6 +1367,7 @@ async function saveEntry(){
   await loadEntries();
   sheetIsNewUnsaved = false;
   closeSheet();
+  if(isSignedIn()) syncNow(); // sync trigger point: after every save
 }
 
 // ---------- Detail view ----------
@@ -869,17 +1429,27 @@ async function renderDetailPhotoGrid(photos, entryId){
 }
 
 async function deleteEntry(id){
-  if(!confirm("Delete this entry? This can't be undone.")) return;
+  const ok = await showConfirm("Delete this entry? This can't be undone.", {confirmLabel:'Delete'});
+  if(!ok) return;
   const entry = entries.find(e=>e.id===id);
-  if(entry && entry.photos){
-    for(const pid of entry.photos){
-      await idbDelete('photos', pid);
-      delete photoUrlCache[pid];
+  if(entry){
+    if(entry.photos){
+      for(const pid of entry.photos){
+        await idbDelete('photos', pid);
+        delete photoUrlCache[pid];
+      }
     }
+    // Tombstone, not a hard delete: keeps a timestamped "deleted" record so
+    // the sync merge logic can propagate this deletion to the other device
+    // instead of the entry silently reappearing next time they sync.
+    entry.deleted = true;
+    entry.photos = [];
+    entry.updatedAt = Date.now();
+    await saveEntryToDB(entry);
   }
-  await idbDelete('entries', id);
   await loadEntries();
   closeSheet();
+  if(isSignedIn()) syncNow(); // sync trigger point: after every save (deletion counts)
 }
 
 // ---------- Lightbox ----------
@@ -942,6 +1512,7 @@ async function setCoverPhoto(ev){
     const entry = entries.find(e=>e.id===lightboxContext);
     if(entry){
       entry.photos = [...lightboxPhotos];
+      entry.updatedAt = Date.now();
       await saveEntryToDB(entry);
       renderDetailPhotoGrid(entry.photos, entry.id);
       render();
@@ -1029,6 +1600,7 @@ function applyUpdate(){
 
 history.replaceState({view:'board'}, '');
 loadEntries();
+initMsal();
 </script>
 </body>
 </html>

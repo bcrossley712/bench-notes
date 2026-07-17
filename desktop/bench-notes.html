@@ -487,6 +487,16 @@
   }
   .lightbox-overlay.open{display:flex;}
   .lightbox-overlay img{max-width:100%; max-height:100%; border-radius:4px;}
+
+  .modal-overlay{position:fixed; inset:0; background:#000000c0; display:none; align-items:center; justify-content:center; z-index:80; padding:20px;}
+  .modal-overlay.open{display:flex;}
+  .modal-box{background:var(--panel); border:1px solid var(--rule); border-top:3px solid var(--orange); border-radius:8px; max-width:380px; width:100%; padding:20px; box-shadow:0 12px 32px #00000060;}
+  .modal-message{font-size:14.5px; line-height:1.5; margin-bottom:18px; white-space:pre-wrap;}
+  .modal-actions{display:flex; gap:10px; justify-content:flex-end;}
+  .modal-btn{padding:10px 16px; border-radius:6px; font-family:'Oswald',sans-serif; text-transform:uppercase; font-size:12.5px; font-weight:600; border:none; cursor:pointer;}
+  .modal-btn.cancel{background:transparent; color:var(--muted); border:1px solid var(--rule);}
+  .modal-btn.confirm{background:var(--orange); color:#1A1A1C;}
+  .modal-btn.confirm.danger{background:var(--danger); color:#fff;}
 </style>
 </head>
 <body>
@@ -499,6 +509,14 @@
   </div>
   <button class="new-btn" onclick="openNewEntryTab()">+ New Entry</button>
 </header>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box">
+    <div class="modal-message" id="modalMessage"></div>
+    <div class="modal-actions" id="modalActions"></div>
+  </div>
+</div>
+
 
 <div class="tab-bar" id="tabBar"></div>
 
@@ -560,6 +578,46 @@
 </div>
 
 <script>
+// ---------- Custom modal (replaces native alert()/confirm()) ----------
+function showAlert(message, opts){
+  opts = opts || {};
+  return new Promise(resolve=>{
+    const overlay = document.getElementById('modalOverlay');
+    document.getElementById('modalMessage').textContent = message;
+    const actions = document.getElementById('modalActions');
+    actions.innerHTML = '';
+    const okBtn = document.createElement('button');
+    okBtn.className = 'modal-btn confirm';
+    okBtn.textContent = opts.okLabel || 'OK';
+    okBtn.onclick = ()=>{ overlay.classList.remove('open'); resolve(); };
+    actions.appendChild(okBtn);
+    overlay.classList.add('open');
+    okBtn.focus();
+  });
+}
+
+function showConfirm(message, opts){
+  opts = opts || {};
+  return new Promise(resolve=>{
+    const overlay = document.getElementById('modalOverlay');
+    document.getElementById('modalMessage').textContent = message;
+    const actions = document.getElementById('modalActions');
+    actions.innerHTML = '';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'modal-btn cancel';
+    cancelBtn.textContent = opts.cancelLabel || 'Cancel';
+    cancelBtn.onclick = ()=>{ overlay.classList.remove('open'); resolve(false); };
+    const confirmBtn = document.createElement('button');
+    confirmBtn.className = 'modal-btn confirm' + (opts.danger === false ? '' : ' danger');
+    confirmBtn.textContent = opts.confirmLabel || 'Confirm';
+    confirmBtn.onclick = ()=>{ overlay.classList.remove('open'); resolve(true); };
+    actions.appendChild(cancelBtn);
+    actions.appendChild(confirmBtn);
+    overlay.classList.add('open');
+    confirmBtn.focus();
+  });
+}
+
 let entries = [];
 let engineFilter = 'all';
 let sourceFilter = 'all';
@@ -597,7 +655,7 @@ async function changeStorageFolder(){
     openTabs = [];          // old tabs may reference entries that don't exist in the new folder
     activeTabId = 'board';
     await loadEntries();
-    alert('Storage folder updated. New entries and photos will be saved there.\n\nTip: point this at a Dropbox, Google Drive, or OneDrive folder to sync with a phone app later.');
+    await showAlert('Storage folder updated. New entries and photos will be saved there.\n\nTip: point this at a Dropbox, Google Drive, or OneDrive folder to sync with a phone app later.');
   }
 }
 
@@ -631,11 +689,11 @@ async function saveEntries(){
   try{
     const result = await window.api.saveEntries(entries);
     if(result && result.ok === false){
-      alert('Could not save your entries: ' + (result.error || 'unknown error'));
+      await showAlert('Could not save your entries: ' + (result.error || 'unknown error'));
     }
   }catch(e){
     console.error('Save failed', e);
-    alert('Could not save your entries. Please try again.');
+    await showAlert('Could not save your entries. Please try again.');
   }
 }
 
@@ -663,7 +721,7 @@ function setEngineFilter(e){
 }
 
 function renderEngineFilters(){
-  const types = Array.from(new Set(entries.map(e=>e.engineModel).filter(Boolean))).sort();
+  const types = Array.from(new Set(entries.filter(e=>!e.deleted).map(e=>e.engineModel).filter(Boolean))).sort();
   const wrap = document.getElementById('engineFilters');
   wrap.innerHTML = '';
   const allChip = document.createElement('button');
@@ -681,6 +739,10 @@ function renderEngineFilters(){
 }
 
 function matchesFilters(entry, q){
+  // Tombstoned entries (deleted:true) stay in the entries array so they
+  // still get written to disk and can propagate the deletion on sync —
+  // they just never show up in any filtered/rendered view.
+  if(entry.deleted) return false;
   if(engineFilter !== 'all' && entry.engineModel !== engineFilter) return false;
   if(sourceFilter !== 'all' && entry.source !== sourceFilter) return false;
   if(statusFilter === 'needs-diagnosis' && !isNeedsDiagnosis(entry)) return false;
@@ -698,17 +760,18 @@ function matchesFilters(entry, q){
 function render(){
   renderEngineFilters();
   const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const visible = entries.filter(e=>!e.deleted);
   const filtered = entries.filter(e=>matchesFilters(e,q))
                           .sort((a,b)=> b.createdAt - a.createdAt);
 
   document.getElementById('boardCount').textContent =
     filtered.length + (filtered.length===1 ? ' entry' : ' entries') +
-    (entries.length !== filtered.length ? ' (of ' + entries.length + ')' : '');
+    (visible.length !== filtered.length ? ' (of ' + visible.length + ')' : '');
 
   const board = document.getElementById('board');
   board.innerHTML = '';
 
-  if(entries.length === 0){
+  if(visible.length === 0){
     board.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
       <h3>No work orders yet</h3>
       <p>Start logging the fixes, symptoms, and know-how as you and your dad work through jobs. Every entry becomes something you can search for later.</p>
@@ -755,9 +818,9 @@ function render(){
     });
   }
 
-  const dadCount = entries.filter(e=>e.source==='dad').length;
+  const dadCount = visible.filter(e=>e.source==='dad').length;
   document.getElementById('statLine').innerHTML =
-    `<b>${entries.length}</b> total logged<br><b>${dadCount}</b> straight from Dad`;
+    `<b>${visible.length}</b> total logged<br><b>${dadCount}</b> straight from Dad`;
 }
 
 function isNeedsDiagnosis(entry){
@@ -830,10 +893,11 @@ function openEntryTab(entryId){
   switchTab(entryId);
 }
 
-function closeTab(id){
+async function closeTab(id){
   const tab = openTabs.find(t=>t.id===id);
   if(tab && tab.isNew && tab.mode === 'edit'){
-    if(!confirm('Discard this new work order? Nothing will be saved.')) return;
+    const ok = await showConfirm('Discard this new work order? Nothing will be saved.', {confirmLabel:'Discard'});
+    if(!ok) return;
   }
   closeCamera();
   openTabs = openTabs.filter(t=>t.id!==id);
@@ -1137,7 +1201,7 @@ async function capturePhoto(){
     tab.draftPhotos.push(result.filename);
     renderDraftPhotoGrid();
   } else {
-    alert('Could not save the photo: ' + (result.error || 'unknown error'));
+    await showAlert('Could not save the photo: ' + (result.error || 'unknown error'));
   }
 }
 
@@ -1218,7 +1282,7 @@ async function saveEntry(){
   const title = document.getElementById('f_title').value.trim();
   const customerName = document.getElementById('f_customerName').value.trim();
   if(!title && !customerName){
-    alert('Add at least a customer name or a symptom title so you can find this again.');
+    await showAlert('Add at least a customer name or a symptom title so you can find this again.');
     return;
   }
 
@@ -1251,6 +1315,7 @@ async function saveEntry(){
       ...data,
       orderNumber: nextNum,
       createdAt: Date.now(),
+      updatedAt: Date.now(),
       dateAdded: new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})
     });
     tab.id = newId;
@@ -1259,7 +1324,7 @@ async function saveEntry(){
   } else {
     const idx = entries.findIndex(e=>e.id===tab.id);
     if(idx>-1){
-      entries[idx] = {...entries[idx], ...data};
+      entries[idx] = {...entries[idx], ...data, updatedAt: Date.now()};
     }
   }
   tab.mode = 'view';
@@ -1268,15 +1333,23 @@ async function saveEntry(){
 }
 
 async function deleteEntry(id){
-  if(!confirm('Delete this entry? This can\'t be undone.')) return;
+  const ok = await showConfirm("Delete this entry? This can't be undone.", {confirmLabel:'Delete'});
+  if(!ok) return;
   const entry = entries.find(e=>e.id===id);
-  if(entry && entry.photos && entry.photos.length){
-    for(const filename of entry.photos){
-      await window.api.deletePhoto(filename);
-      delete photoCache[filename];
+  if(entry){
+    if(entry.photos && entry.photos.length){
+      for(const filename of entry.photos){
+        await window.api.deletePhoto(filename);
+        delete photoCache[filename];
+      }
     }
+    // Tombstone, not a hard delete: stays in entries[] (and so still gets
+    // written to disk) so the sync merge logic can propagate this deletion
+    // to the other device instead of the entry silently reappearing.
+    entry.deleted = true;
+    entry.photos = [];
+    entry.updatedAt = Date.now();
   }
-  entries = entries.filter(e=>e.id!==id);
   await saveEntries();
   closeTab(id);
 }
