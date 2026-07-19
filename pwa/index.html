@@ -49,11 +49,30 @@
     font-family:'Oswald',sans-serif; font-weight:600; text-transform:uppercase;
     font-size:12px; padding:8px 12px; border-radius:3px; cursor:pointer;
   }
-  #exportBtn{
-    background:none; color:var(--paper-text); border:1px solid var(--rule);
-    font-family:'Oswald',sans-serif; font-weight:600; text-transform:uppercase;
-    font-size:12px; padding:8px 12px; border-radius:3px; cursor:pointer;
+
+  #settingsGearBtn{
+    position:relative; background:none; border:1px solid var(--rule); color:var(--paper-text);
+    width:36px; height:36px; border-radius:6px; font-size:17px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
   }
+  .dot{width:7px; height:7px; border-radius:50%; background:var(--muted); flex:none; display:inline-block;}
+  .dot.state-synced{background:#4CAF50;}
+  .dot.state-syncing{background:var(--orange);}
+  .dot.state-error{background:var(--danger);}
+  #settingsGearBtn .dot{position:absolute; top:3px; right:3px; width:8px; height:8px; border:1.5px solid var(--panel);}
+  #syncStatusText.clickable{cursor:pointer; text-decoration:underline;}
+
+  .settings-box{max-width:400px;}
+  .settings-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;}
+  .settings-header h2{font-family:'Oswald',sans-serif; font-size:18px; text-transform:uppercase;}
+  .settings-header .modal-btn{padding:6px 12px; font-size:11px;}
+  .settings-section{margin-bottom:20px; padding-bottom:20px; border-bottom:1px solid var(--rule);}
+  .settings-section:last-child{margin-bottom:0; padding-bottom:0; border-bottom:none;}
+  .settings-section-label{font-family:'Oswald',sans-serif; font-size:12px; color:var(--brass); letter-spacing:0.06em; text-transform:uppercase; margin-bottom:10px;}
+  .settings-sync-row{display:flex; align-items:center; gap:8px; font-size:13.5px; margin-bottom:10px;}
+  .settings-section .modal-btn{width:100%; margin-bottom:8px;}
+  .settings-section .modal-btn:last-child{margin-bottom:0;}
+  .settings-danger .settings-section-label{color:var(--danger);}
 
   #iosBanner{
     display:none;
@@ -80,23 +99,6 @@
     font-size:12px; padding:6px 12px; border-radius:3px; cursor:pointer;
   }
 
-  #syncBar{
-    display:flex; align-items:center; justify-content:space-between; gap:10px;
-    background:var(--panel-raised); border-bottom:1px solid var(--rule);
-    font-size:12px; padding:8px 16px; font-family:'IBM Plex Sans',sans-serif; color:var(--muted);
-  }
-  #syncBar .dot{width:7px; height:7px; border-radius:50%; background:var(--muted); flex:none; display:inline-block; margin-right:6px;}
-  #syncBar #syncStatusText{cursor:default;}
-  #syncBar.state-synced #syncStatusText{cursor:pointer;}
-  #syncBar.state-synced #syncStatusText:hover{text-decoration:underline;}
-  #syncBar.state-synced .dot{background:#4CAF50;}
-  #syncBar.state-syncing .dot{background:var(--orange);}
-  #syncBar.state-error .dot{background:var(--danger);}
-  #syncBar button{
-    background:none; border:1px solid var(--rule); color:var(--paper-text);
-    font-family:'Oswald',sans-serif; font-weight:600; text-transform:uppercase;
-    font-size:11px; padding:5px 10px; border-radius:4px; cursor:pointer; flex:none;
-  }
 
   .search-wrap{padding:12px 16px 0;}
   input[type=text], input[type=search], textarea, select{
@@ -203,6 +205,8 @@
   .modal-overlay.open{display:flex;}
   .modal-box{background:var(--panel); border:1px solid var(--rule); border-top:3px solid var(--orange); border-radius:8px; max-width:360px; width:100%; padding:20px; box-shadow:0 12px 32px #00000060;}
   .modal-message{font-size:14.5px; line-height:1.5; margin-bottom:18px; white-space:pre-wrap;}
+  .modal-message input[type=text]{width:100%; margin-top:12px; background:var(--panel-raised); border:1px solid var(--rule); color:var(--paper-text); padding:9px 11px; border-radius:6px; font-size:14px;}
+  .modal-btn.confirm:disabled{opacity:0.4; cursor:not-allowed;}
   .modal-actions{display:flex; gap:10px; justify-content:flex-end;}
   .modal-btn{padding:10px 16px; border-radius:6px; font-family:'Oswald',sans-serif; text-transform:uppercase; font-size:12.5px; font-weight:600; border:none; cursor:pointer;}
   .modal-btn.cancel{background:transparent; color:var(--muted); border:1px solid var(--rule);}
@@ -231,15 +235,42 @@
 <header>
   <h1>BENCH <span>NOTES</span></h1>
   <div style="display:flex; gap:8px; align-items:center;">
-    <button id="exportBtn" onclick="exportAllData()">Export</button>
     <button id="installBtn">Install</button>
+    <button id="settingsGearBtn" onclick="openSettings()" aria-label="Settings">
+      ⚙<span class="dot state-offline" id="settingsGearDot"></span>
+    </button>
   </div>
 </header>
 
-<div id="syncBar" class="state-offline">
-  <span><span class="dot"></span><span id="syncStatusText" onclick="onSyncStatusClick()">Not signed in</span></span>
-  <button id="syncActionBtn" onclick="onSyncButtonClick()">Connect OneDrive</button>
+<div class="modal-overlay" id="settingsOverlay">
+  <div class="modal-box settings-box">
+    <div class="settings-header">
+      <h2>Settings</h2>
+      <button class="modal-btn cancel" onclick="closeSettings()">Close</button>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-label">OneDrive Sync</div>
+      <div class="settings-sync-row">
+        <span class="dot state-offline" id="syncStatusDot"></span>
+        <span id="syncStatusText" onclick="onSyncStatusClick()">Not signed in</span>
+      </div>
+      <button class="modal-btn confirm" id="syncActionBtn" onclick="onSyncButtonClick()">Connect OneDrive</button>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-label">Backup</div>
+      <button class="modal-btn cancel" id="exportBtn" onclick="exportAllData()">Export backup</button>
+      <button class="modal-btn cancel" id="restoreBtn" onclick="triggerRestoreInput()">Restore from backup</button>
+    </div>
+
+    <div class="settings-section settings-danger">
+      <div class="settings-section-label">Danger Zone</div>
+      <button class="modal-btn confirm danger" onclick="startClearLocalData()">Clear local data…</button>
+    </div>
+  </div>
 </div>
+<input type="file" id="hiddenRestoreInput" accept="application/json" style="display:none">
 
 <div id="iosBanner">
   Add to your Home Screen: tap Share, then "Add to Home Screen".
@@ -328,6 +359,46 @@ function showConfirm(message, opts){
     actions.appendChild(confirmBtn);
     overlay.classList.add('open');
     confirmBtn.focus();
+  });
+}
+
+// For genuinely destructive actions where a single accidental tap
+// shouldn't be enough — the confirm button stays disabled until the
+// person types the exact required word (e.g. "DELETE").
+function showTypedConfirm(message, requiredText, opts){
+  opts = opts || {};
+  return new Promise(resolve=>{
+    const overlay = document.getElementById('modalOverlay');
+    const msgEl = document.getElementById('modalMessage');
+    msgEl.textContent = '';
+    msgEl.appendChild(document.createTextNode(message));
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.autocomplete = 'off';
+    input.autocapitalize = 'off';
+    input.spellcheck = false;
+    input.placeholder = `Type ${requiredText} to confirm`;
+    input.style.marginTop = '12px';
+    msgEl.appendChild(input);
+
+    const actions = document.getElementById('modalActions');
+    actions.innerHTML = '';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'modal-btn cancel';
+    cancelBtn.textContent = opts.cancelLabel || 'Cancel';
+    cancelBtn.onclick = ()=>{ overlay.classList.remove('open'); resolve(false); };
+    const confirmBtn = document.createElement('button');
+    confirmBtn.className = 'modal-btn confirm danger';
+    confirmBtn.textContent = opts.confirmLabel || 'Confirm';
+    confirmBtn.disabled = true;
+    confirmBtn.onclick = ()=>{ overlay.classList.remove('open'); resolve(true); };
+    input.oninput = ()=>{ confirmBtn.disabled = (input.value.trim() !== requiredText); };
+
+    actions.appendChild(cancelBtn);
+    actions.appendChild(confirmBtn);
+    overlay.classList.add('open');
+    input.focus();
   });
 }
 
@@ -423,7 +494,13 @@ async function initMsal(){
       auth: {
         clientId: MSAL_CLIENT_ID,
         authority: 'https://login.microsoftonline.com/consumers',
-        redirectUri: window.location.origin + window.location.pathname
+        // Hardcoded, not derived from window.location: the installed PWA's
+        // start_url (manifest.webmanifest) is "./index.html", which resolves
+        // to a different URL than the bare folder URL registered in Azure —
+        // deriving this dynamically caused a redirect_uri mismatch the first
+        // time sign-in was tried from the home-screen icon. Must exactly
+        // match the SPA redirect URI registered in the Azure app registration.
+        redirectUri: 'https://bcrossley712.github.io/bench-notes/'
       },
       cache: { cacheLocation: 'localStorage' } // survives closing/reopening the installed PWA
     });
@@ -736,10 +813,15 @@ function formatLastSynced(){
 }
 
 function setSyncBar(state, message){
-  const bar = document.getElementById('syncBar');
+  const gearDot = document.getElementById('settingsGearDot');
+  const panelDot = document.getElementById('syncStatusDot');
   const text = document.getElementById('syncStatusText');
   const btn = document.getElementById('syncActionBtn');
-  bar.className = 'state-' + state;
+
+  gearDot.className = 'dot state-' + state;
+  panelDot.className = 'dot state-' + state;
+  text.classList.toggle('clickable', state === 'synced');
+
   if(state === 'synced'){
     text.textContent = formatLastSynced();
     btn.textContent = 'Sync now';
@@ -761,6 +843,13 @@ function updateSyncBarForState(){
   } else {
     setSyncBar('offline');
   }
+}
+
+function openSettings(){
+  document.getElementById('settingsOverlay').classList.add('open');
+}
+function closeSettings(){
+  document.getElementById('settingsOverlay').classList.remove('open');
 }
 
 // ---------- IndexedDB ----------
@@ -823,6 +912,16 @@ async function idbGet(storeName, id){
   });
 }
 
+async function idbClear(storeName){
+  const db = await openDB();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(storeName, 'readwrite');
+    tx.objectStore(storeName).clear();
+    tx.oncomplete = ()=>resolve();
+    tx.onerror = ()=>reject(tx.error);
+  });
+}
+
 // ---------- Backup export ----------
 function blobToBase64(blob){
   return new Promise((resolve, reject)=>{
@@ -832,6 +931,95 @@ function blobToBase64(blob){
     reader.readAsDataURL(blob);
   });
 }
+
+function base64ToBlob(base64, mimeType){
+  const byteChars = atob(base64);
+  const byteNumbers = new Array(byteChars.length);
+  for(let i=0; i<byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+  return new Blob([new Uint8Array(byteNumbers)], {type: mimeType || 'image/jpeg'});
+}
+
+function triggerRestoreInput(){
+  document.getElementById('hiddenRestoreInput').click();
+}
+
+// Restoring reuses the exact same merge-by-id logic as OneDrive sync,
+// treating the backup file like a remote peer's data with no known
+// baseline. That means restoring never blindly overwrites what's already
+// on the device — an entry only present in the backup gets added back, an
+// entry that exists in both places keeps whichever is newer, and a true
+// conflict (same entry, different content, no way to tell which is
+// "right") gets preserved as a flagged duplicate instead of silently
+// picking one, exactly like a normal sync conflict would.
+async function handleRestoreFile(event){
+  const file = event.target.files && event.target.files[0];
+  event.target.value = '';
+  if(!file) return;
+
+  let payload;
+  try{
+    payload = JSON.parse(await file.text());
+  }catch(err){
+    await showAlert("That file doesn't look like a valid Bench Notes backup (couldn't read it as JSON).");
+    return;
+  }
+  if(!payload || !Array.isArray(payload.entries)){
+    await showAlert("That file doesn't look like a valid Bench Notes backup (missing an entries list).");
+    return;
+  }
+
+  const entryWord = payload.entries.length === 1 ? 'entry' : 'entries';
+  const ok = await showConfirm(
+    `Restore from this backup? It contains ${payload.entries.length} ${entryWord}` +
+    (payload.exportedAt ? ` from ${new Date(payload.exportedAt).toLocaleDateString()}` : '') +
+    `.\n\nThis merges with what's already on this device — nothing already here gets deleted, and if the same entry differs between the two, both versions are kept so you can review them.`,
+    {confirmLabel:'Restore', danger:false}
+  );
+  if(!ok) return;
+
+  const btn = document.getElementById('restoreBtn');
+  const originalLabel = btn.textContent;
+  btn.textContent = 'Restoring…';
+  btn.disabled = true;
+  try{
+    const localRaw = await idbGetAll('entries');
+    // No baseline: we have no idea what was "last synced" against this
+    // backup, so any same-id difference is treated as a genuine conflict
+    // rather than assumed to be a one-sided change.
+    const { merged, conflicts } = mergeEntries(localRaw, payload.entries, {});
+    for(const entry of merged){
+      await idbPut('entries', entry);
+    }
+
+    let photosRestored = 0;
+    if(Array.isArray(payload.photos)){
+      const existingPhotoIds = new Set((await idbGetAll('photos')).map(p=>p.id));
+      for(const p of payload.photos){
+        if(existingPhotoIds.has(p.id)) continue; // already have this one locally
+        if(!p.dataBase64) continue;
+        const blob = base64ToBlob(p.dataBase64, p.mimeType);
+        await idbPut('photos', {id: p.id, blob, mimeType: p.mimeType || 'image/jpeg', filename: p.filename || (p.id + '.jpg')});
+        photosRestored++;
+      }
+    }
+
+    await loadEntries();
+    if(isSignedIn()) syncNow(); // let the restored data propagate to OneDrive/other devices too
+
+    let message = `Restore complete. ${photosRestored} photo(s) added.`;
+    if(conflicts.length > 0){
+      message += `\n\n${conflicts.length} entr${conflicts.length===1?'y':'ies'} existed in both places with different content — both versions were kept (look for "⚠ sync conflict copy" in the title) so you can compare and delete whichever you don't need.`;
+    }
+    await showAlert(message);
+  }catch(err){
+    console.error('Restore failed', err);
+    await showAlert('Restore failed: ' + (err && err.message ? err.message : err));
+  }finally{
+    btn.textContent = originalLabel;
+    btn.disabled = false;
+  }
+}
+document.getElementById('hiddenRestoreInput').addEventListener('change', handleRestoreFile);
 
 async function exportAllData(){
   const btn = document.getElementById('exportBtn');
@@ -873,6 +1061,44 @@ async function exportAllData(){
   }finally{
     btn.textContent = originalLabel;
     btn.disabled = false;
+  }
+}
+
+// ---------- Clear local data ----------
+// Two deliberate steps, not one click-through: a warning that nudges
+// toward exporting first, then a typed "DELETE" confirmation that keeps
+// the actual confirm button disabled until the exact word is typed. This
+// is destructive and permanent, so a single accidental tap should never
+// be enough to trigger it.
+async function startClearLocalData(){
+  const hasBackedUp = await showConfirm(
+    'This permanently deletes every entry and photo stored on THIS DEVICE. ' +
+    'It does not affect OneDrive or any other device, but anything not synced ' +
+    "yet is gone for good.\n\nHave you exported a backup, just in case?",
+    {confirmLabel:'Yes, continue', cancelLabel:'Let me export first', danger:true}
+  );
+  if(!hasBackedUp) return;
+
+  const reallyDelete = await showTypedConfirm(
+    'Last chance — this cannot be undone. Type DELETE below to permanently erase all local entries and photos on this device.',
+    'DELETE',
+    {confirmLabel:'Clear local data', cancelLabel:'Cancel'}
+  );
+  if(!reallyDelete) return;
+
+  try{
+    await idbClear('entries');
+    await idbClear('photos');
+    localStorage.removeItem(SYNC_BASELINE_KEY);
+    localStorage.removeItem(SYNC_LAST_KEY);
+    for(const url of Object.values(photoUrlCache)) URL.revokeObjectURL(url);
+    photoUrlCache = {};
+    await loadEntries();
+    closeSettings();
+    await showAlert('Local data cleared.');
+  }catch(err){
+    console.error('Clear local data failed', err);
+    await showAlert('Clearing local data failed: ' + (err && err.message ? err.message : err));
   }
 }
 
@@ -1399,7 +1625,8 @@ function openDetail(id){
     ${entry.steps ? `<div class="detail-section"><div class="drawer-label">Diagnostic Steps</div><p>${escapeHtml(entry.steps)}</p></div>` : ''}
     ${(entry.fix || checklistLines(entry.checklist||{}).length) ? (()=>{
         const clLines = checklistLines(entry.checklist||{});
-        return `<div class="detail-section"><div class="drawer-label">The Fix</div>${clLines.length ? `<div class="checklist-fix-preview" style="display:block; margin-bottom:${entry.fix?'10px':'0'};">${clLines.map(l=>`<div class="checklist-fix-line">${escapeHtml(l)}</div>`).join('')}</div>` : ''}${entry.fix ? `<p>${escapeHtml(entry.fix)}</p>` : ''}</div>`;
+        const combined = [clLines.join('\n'), entry.fix].filter(Boolean).join('\n\n');
+        return `<div class="detail-section"><div class="drawer-label">The Fix</div><p>${escapeHtml(combined)}</p></div>`;
       })() : ''}
     ${entry.partsUsed ? `<div class="detail-section"><div class="drawer-label">Parts Used</div><p>${escapeHtml(entry.partsUsed)}</p></div>` : ''}
     ${entry.notes ? `<div class="detail-section"><div class="drawer-label">Notes</div><p>${escapeHtml(entry.notes)}</p></div>` : ''}

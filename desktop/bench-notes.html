@@ -1249,7 +1249,8 @@ function renderEntryDetail(tab){
       ${entry.steps ? `<div class="detail-section"><div class="drawer-label">Diagnostic Steps</div><p>${escapeHtml(entry.steps)}</p></div>` : ''}
       ${(entry.fix || checklistLines(entry.checklist||{}).length) ? (()=>{
           const clLines = checklistLines(entry.checklist||{});
-          return `<div class="detail-section"><div class="drawer-label">The Fix</div>${clLines.length ? `<div class="checklist-fix-preview" style="display:block; margin-bottom:${entry.fix?'10px':'0'};">${clLines.map(l=>`<div class="checklist-fix-line">${escapeHtml(l)}</div>`).join('')}</div>` : ''}${entry.fix ? `<p>${escapeHtml(entry.fix)}</p>` : ''}</div>`;
+          const combined = [clLines.join('\n'), entry.fix].filter(Boolean).join('\n\n');
+          return `<div class="detail-section"><div class="drawer-label">The Fix</div><p>${escapeHtml(combined)}</p></div>`;
         })() : ''}
       ${entry.partsUsed ? `<div class="detail-section"><div class="drawer-label">Parts Used</div><p>${escapeHtml(entry.partsUsed)}</p></div>` : ''}
       ${entry.notes ? `<div class="detail-section"><div class="drawer-label">Notes</div><p>${escapeHtml(entry.notes)}</p></div>` : ''}

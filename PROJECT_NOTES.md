@@ -210,11 +210,46 @@ are*, so you don't accidentally re-litigate settled decisions.
   - Sync trigger points: on app open, after every save/delete,
     and every 5 minutes while the app is open (`initMsal()`/
     `saveEntry()`/`deleteEntry()` in `pwa/index.html`).
+  - **First real-world test found a real bug — fixed.** The redirect
+    URI was originally computed dynamically from `window.location.
+    pathname`. That matched Azure's registered value when typed
+    directly into a browser tab, but not when launched from the
+    installed home-screen icon — the manifest's `start_url` is
+    `./index.html`, which resolves to a different URL than the bare
+    folder URL registered in Azure, causing an `invalid_request:
+    redirect_uri` error specifically from the installed-icon launch
+    path. **Fixed** by hardcoding `redirectUri` to the exact registered
+    string (`https://bcrossley712.github.io/bench-notes/`) instead of
+    deriving it from wherever the page happened to load. Confirmed
+    working from a regular browser tab; **launching from the actual
+    home-screen icon still needs to be tried** to fully confirm the fix
+    (a browser-tab test doesn't exercise the code path that broke).
+  - **Restore/import — built**, alongside export. Reuses the exact
+    same merge-by-id logic as OneDrive sync — restoring from a backup
+    file never blindly overwrites what's already on the device; same
+    conflict-duplicate handling as a normal sync. Lives in the
+    Settings panel (see below), not the main UI.
+  - **Settings panel — built.** A gear icon in the header (with a
+    small colored status dot mirroring sync state — green/orange/
+    red/gray — so sync problems stay visible without opening
+    anything) replaced the old always-visible Export button and sync
+    bar, after the user pushed back on those being too prominent for
+    how rarely they're used. Panel has three sections: **OneDrive
+    Sync** (status + connect/sync/disconnect), **Backup** (export/
+    restore), **Danger Zone** (clear local data).
+  - **Clear local data — built**, with real friction against an
+    accidental tap: a warning step (nudges toward exporting first),
+    then a typed-confirmation step (`showTypedConfirm()` — confirm
+    button stays disabled until the exact word "DELETE" is typed).
+    PWA-only for now — clears IndexedDB (`entries` + `photos` stores)
+    and the local sync baseline. Desktop doesn't have an equivalent
+    yet (no sync/backup built there yet to need one).
   - **Not yet tested against a real Microsoft account/browser.** Merge
     logic and photo-compression logic are unit-tested; the actual
     OAuth handshake, live Graph API calls, and redirect behavior have
-    not been — that's the next real-world test once the user tries
-    signing in.
+    only been partially tried (see the redirect URI bug above) — full
+    confirmation, including from the installed home-screen icon, is
+    still the next real-world test.
   - **Desktop OneDrive sync — not started.** Needs MSAL Node (or an
     equivalent device-code flow: show a code, user enters it at
     microsoft.com/link, poll for token) since Electron can't use an
@@ -262,7 +297,13 @@ are*, so you don't accidentally re-litigate settled decisions.
   browser `confirm()`/`alert()` calls left in either app; if you're
   about to add one, use these instead. Same implementation duplicated
   in both apps (`#modalOverlay`/`#modalMessage`/`#modalActions` in the
-  HTML, functions near the top of each `<script>` block).
+  HTML, functions near the top of each `<script>` block). **PWA only**
+  also has `showTypedConfirm(message, requiredText, opts)` — same
+  pattern, but the confirm button stays disabled until the exact
+  required word is typed. Currently used for "Clear local data" only;
+  reach for it any time an action is destructive enough that a single
+  accidental tap shouldn't be sufficient — desktop doesn't have this yet
+  since it doesn't have a use for it yet either.
 
 ## Desktop app specifics
 
@@ -289,18 +330,24 @@ are*, so you don't accidentally re-litigate settled decisions.
   above; not extended to avoid scope creep).
 - **Service Checklist** (13 fixed items mirroring the paper work order
   sheet). Checked items render as a read-only preview ("Label - note")
-  above the Fix textarea via `checklistLines()`/`renderChecklistPreview()`
-  — never written into the editable textarea itself. The Fix textarea
-  holds only manually-typed notes. On save/display, checklist lines and
-  manual Fix text are composed together (checklist first, then manual
-  notes) purely for that render — nothing is stored pre-combined, so
-  there's no stale block to drift out of sync. Search includes checklist
-  text explicitly since it's no longer riding along inside `entry.fix`.
+  above the Fix textarea in the **edit/new-entry form** via
+  `checklistLines()`/`renderChecklistPreview()` — never written into
+  the editable textarea itself, and this part is deliberately staying
+  a visually separate, non-editable element (see the parenthetical
+  below for why). The Fix textarea holds only manually-typed notes.
+  In the **saved/detail view** specifically, checklist lines and
+  manual Fix text render as one continuous flowing block of text, no
+  visual separation between them (changed this session — used to be a
+  bordered/boxed sub-section, the user wanted it to read as one
+  natural section instead). Either way nothing is stored pre-combined
+  — it's composed fresh at render time, so there's no stale block to
+  drift out of sync. Search includes checklist text explicitly since
+  it's no longer riding along inside `entry.fix`.
   (Earlier version tracked a `checklistFixBlock` string and tried to
   find-and-replace it in the textarea — fragile, caused duplicate
   entries in the Fix field when the tracked block didn't exactly match
   stored text, e.g. after a note with an embedded line break. Fixed
-  this session; same fix applied to both apps.)
+  in an earlier session; same fix applied to both apps.)
 - App launches cleanly via `npm start`. Feature-level testing (entries,
   checklist, photos, tab-close confirm, folder change) and the packaged
   `.exe` install are still outstanding — see `TODO.md` for the exact

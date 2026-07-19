@@ -1,6 +1,6 @@
 # Bench Notes — Things to Do at the Computer
 
-_Last updated: PWA OneDrive sync built (auth, entry merge, photo sync + compression) — not yet tested against a real Microsoft account. Desktop sync not started. Tombstone deletion + custom modal built in both apps._
+_Last updated: PWA sign-in tested from a browser tab (worked); a real bug was found and fixed (redirect URI mismatch when launched from the home-screen icon) — still needs testing from the actual icon. Restore/import, a settings panel (gear icon + status dot), and "Clear local data" (typed-confirmation) all built in the PWA. Checklist+Fix now flows as one block in both apps' detail view (was a separate boxed section)._
 
 ## Repo structure — decided and built
 - [x] One repo (`bench-notes`), not two — `/pwa` and `/desktop` subfolders
@@ -28,6 +28,11 @@ _Last updated: PWA OneDrive sync built (auth, entry merge, photo sync + compress
       filter dropdown all correctly stop showing it (tombstone-based
       deletion added this session — deleted entries stay in the underlying
       data for sync purposes but should be invisible everywhere in the UI)
+- [x] Detail view's "The Fix" section now flows as one continuous block
+      (checklist lines + manual notes together, no bordered box) — matches
+      the same change made in the PWA; edit/new-entry forms untouched
+      (the checklist preview there has to stay a separate element to avoid
+      reintroducing the duplication bug)
 - [ ] Once happy: run `npm run dist` to build the real `.exe` installer
       (not done yet — still only running via `npm start`, not installed)
 - [ ] Run the installer, confirm Start Menu entry + desktop icon work
@@ -93,8 +98,17 @@ _Last updated: PWA OneDrive sync built (auth, entry merge, photo sync + compress
       time, before storing locally at all — applies to both "Take Photo"
       and "Choose Existing"
 - [x] 429/throttling handling: waits for `Retry-After`, retries once
-- [ ] **Not yet tested against a real Microsoft account or real browser.**
-      First real test: sign in on your phone and see what actually happens
+- [x] First real test attempted: sign-in from a regular browser tab
+      (`https://bcrossley712.github.io/bench-notes/`) — worked
+- [x] **Bug found + fixed:** signing in from the installed home-screen icon
+      threw `invalid_request: redirect_uri`. Cause: the manifest's
+      `start_url` (`./index.html`) resolves to a different URL than the
+      bare folder URL registered in Azure, and the code was deriving the
+      redirect URI dynamically instead of using a fixed value. Fixed by
+      hardcoding it — see PROJECT_NOTES.md Sync plan for detail
+- [ ] **Still needs testing: sign in from the actual installed home-screen
+      icon** (not just a browser tab) to fully confirm the fix above —
+      this is the specific path that broke
 - [ ] Desktop OneDrive sync — **not started.** Needs a device-code flow
       (Electron can't use an embedded login window) instead of the PWA's
       browser redirect — different auth code, but merge/photo-sync logic
@@ -122,18 +136,32 @@ for iOS entirely.
       under Equipment) (fixed)
 - [x] Manual JSON export button added (entries + photos, base64) — backup
       safety net independent of OneDrive (added)
-- [x] OneDrive sync built (see "OneDrive API sync" section above) — not
-      yet tested against a real account
-- [ ] Test: sign in on your phone, confirm an entry made on phone shows up
-      after syncing on another signed-in device (once desktop sync exists,
-      or by checking the raw file at onedrive.com/Apps/Bench Notes in the
-      meantime)
+- [x] Restore/import from a backup file added — merges via the same
+      merge-by-id logic as OneDrive sync, never a blind overwrite
+- [x] Settings panel added: gear icon in header (with a colored status dot
+      mirroring sync state) opens a panel with OneDrive / Backup / Danger
+      Zone sections — replaced the old always-visible Export button + sync
+      bar after feedback that they were too prominent for how rarely
+      they're used
+- [x] "Clear local data" added, with real friction against an accidental
+      tap: a warning step, then a typed "DELETE" confirmation
+- [x] OneDrive sync built (see "OneDrive API sync" section above) —
+      partially tested, see the redirect URI bug/fix above
+- [ ] Test: sign in on your phone **from the home-screen icon specifically**,
+      confirm an entry made on phone shows up after syncing on another
+      signed-in device (once desktop sync exists, or by checking the raw
+      file at onedrive.com/Apps/Bench Notes in the meantime)
 - [ ] Test: delete an entry, confirm it disappears on the other device too
       after both have synced
 - [ ] Test: take/attach several photos, confirm they show up in the
       OneDrive `Apps/Bench Notes/photos` folder, and confirm file sizes
       look meaningfully smaller than the original camera photos (compression
       working)
+- [ ] Test: restore from an exported backup file, confirm entries/photos
+      come back and nothing already on the device gets wiped
+- [ ] Test: "Clear local data" — confirm the typed-DELETE requirement
+      actually blocks the confirm button until typed correctly, and that
+      it doesn't touch OneDrive itself
 - [ ] Test: custom confirm/alert popups (delete, discard unsaved entry,
       title-required nudge) look right and behave right — replaced the
       native browser ones this session
