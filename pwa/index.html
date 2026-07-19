@@ -43,6 +43,9 @@
   }
   header h1{font-size:20px; color:var(--paper-text);}
   header h1 span{color:var(--orange);}
+  .header-brand{display:flex; align-items:center; gap:10px;}
+  #headerIcon{width:32px; height:32px; border-radius:6px; cursor:pointer; flex-shrink:0;}
+  .icon-lightbox-img{width:min(70vw, 320px); height:auto; border-radius:20px; box-shadow:0 12px 32px #00000060;}
   #installBtn{
     display:none;
     background:var(--orange); color:#1A1A1C; border:none;
@@ -233,7 +236,10 @@
 </div>
 
 <header>
-  <h1>BENCH <span>NOTES</span></h1>
+  <div class="header-brand">
+    <img src="icons/icon-192.png" alt="Bench Notes icon" id="headerIcon" onclick="openIconLightbox()">
+    <h1>BENCH <span>NOTES</span></h1>
+  </div>
   <div style="display:flex; gap:8px; align-items:center;">
     <button id="installBtn">Install</button>
     <button id="settingsGearBtn" onclick="openSettings()" aria-label="Settings">
@@ -241,6 +247,10 @@
     </button>
   </div>
 </header>
+
+<div class="modal-overlay" id="iconLightboxOverlay" onclick="closeIconLightbox()">
+  <img src="icons/icon-512.png" alt="Bench Notes icon, large" class="icon-lightbox-img">
+</div>
 
 <div class="modal-overlay" id="settingsOverlay">
   <div class="modal-box settings-box">
@@ -853,6 +863,13 @@ function openSettings(){
 }
 function closeSettings(){
   document.getElementById('settingsOverlay').classList.remove('open');
+}
+
+function openIconLightbox(){
+  document.getElementById('iconLightboxOverlay').classList.add('open');
+}
+function closeIconLightbox(){
+  document.getElementById('iconLightboxOverlay').classList.remove('open');
 }
 
 // ---------- IndexedDB ----------
