@@ -262,6 +262,7 @@
       <div class="settings-section-label">Backup</div>
       <button class="modal-btn cancel" id="exportBtn" onclick="exportAllData()">Export backup</button>
       <button class="modal-btn cancel" id="restoreBtn" onclick="triggerRestoreInput()">Restore from backup</button>
+      <button class="modal-btn cancel" id="compressPhotosBtn" onclick="compressExistingPhotos()">Compress older photos</button>
     </div>
 
     <div class="settings-section settings-danger">
@@ -1004,7 +1005,17 @@ async function handleRestoreFile(event){
     }
 
     await loadEntries();
-    if(isSignedIn()) syncNow(); // let the restored data propagate to OneDrive/other devices too
+    if(isSignedIn()){
+      // Deliberately reset the baseline before syncing: without this, syncNow()
+      // would merge against the stale pre-restore baseline, which lets a
+      // corrupted-but-newer remote entry silently win and overwrite the very
+      // data we just restored. Clearing it forces the same conflict-safe
+      // treatment used above (baseline={}) — any real difference between the
+      // restored data and what's on OneDrive becomes a flagged duplicate for
+      // review, never a silent overwrite in either direction.
+      localStorage.setItem(SYNC_BASELINE_KEY, '{}');
+      syncNow(); // let the restored data propagate to OneDrive/other devices too
+    }
 
     let message = `Restore complete. ${photosRestored} photo(s) added.`;
     if(conflicts.length > 0){
@@ -1058,6 +1069,93 @@ async function exportAllData(){
   }catch(err){
     console.error('Export failed', err);
     await showAlert('Export failed: ' + (err && err.message ? err.message : err));
+  }finally{
+    btn.textContent = originalLabel;
+    btn.disabled = false;
+  }
+}
+
+// ---------- Photo compression backfill ----------
+// Compression (compressImage()) only ever ran at capture time, starting
+// with the build that added it — any photo attached before that still sits
+// in IndexedDB at its original camera resolution and always will, since
+// nothing else ever revisits already-stored photos. This is a one-time,
+// on-demand pass that finds those old photos and brings them in line with
+// what a new photo would look like today.
+async function compressExistingPhotos(){
+  const btn = document.getElementById('compressPhotosBtn');
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  // Anything already under this is assumed to already be compressed (or
+  // was always small) — skip it rather than pay for a second lossy JPEG
+  // re-encode for no real size benefit.
+  const SKIP_UNDER_BYTES = 700 * 1024;
+
+  try{
+    const allPhotos = await idbGetAll('photos');
+    const candidates = allPhotos.filter(p => p.blob && p.blob.size > SKIP_UNDER_BYTES);
+
+    if(candidates.length === 0){
+      await showAlert('No photos needed compressing — everything already looks compressed.');
+      return;
+    }
+
+    const ok = await showConfirm(
+      `This will recompress ${candidates.length} older photo(s) that predate automatic compression. ` +
+      `They'll shrink locally right away` +
+      (isSignedIn() ? ', and re-upload to OneDrive to shrink there too.' : '.') +
+      ` This can take a little while on a phone — keep the app open until it finishes.`,
+      {confirmLabel: 'Compress now', danger: false}
+    );
+    if(!ok) return;
+
+    let bytesBefore = 0, bytesAfter = 0, uploadFailures = 0;
+    for(let i = 0; i < candidates.length; i++){
+      const p = candidates[i];
+      btn.textContent = `Compressing ${i + 1} of ${candidates.length}…`;
+      bytesBefore += p.blob.size;
+
+      let newBlob;
+      try{
+        newBlob = await compressImage(p.blob);
+      }catch(err){
+        console.error('Compression failed for photo', p.id, err);
+        bytesAfter += p.blob.size; // left unchanged, still counts toward the total
+        continue;
+      }
+      bytesAfter += newBlob.size;
+
+      const filename = p.filename || (p.id + '.jpg');
+      await idbPut('photos', {id: p.id, blob: newBlob, mimeType: 'image/jpeg', filename});
+
+      if(isSignedIn()){
+        // syncPhotos() alone won't re-upload this: it only uploads photos
+        // missing from OneDrive by filename, and this filename already
+        // exists remotely (the old, bigger version). Uploading directly
+        // overwrites it in place.
+        try{
+          await uploadPhotoBlob(filename, newBlob);
+        }catch(err){
+          console.error('Re-upload failed for photo', p.id, err);
+          uploadFailures++;
+        }
+      }
+    }
+
+    await loadEntries(); // refresh any cached photo URLs on screen
+    const savedMB = ((bytesBefore - bytesAfter) / 1024 / 1024).toFixed(1);
+    let message = `Compressed ${candidates.length} photo(s), saving about ${savedMB}MB locally.`;
+    if(isSignedIn()){
+      message += uploadFailures > 0
+        ? ` ${uploadFailures} photo(s) couldn't be re-uploaded to OneDrive — try syncing again later.`
+        : ' Re-uploaded the smaller versions to OneDrive too.';
+    } else {
+      message += ' Sign in and sync to shrink these on OneDrive as well.';
+    }
+    await showAlert(message);
+  }catch(err){
+    console.error('Photo compression backfill failed', err);
+    await showAlert('Compressing photos failed: ' + (err && err.message ? err.message : err));
   }finally{
     btn.textContent = originalLabel;
     btn.disabled = false;
