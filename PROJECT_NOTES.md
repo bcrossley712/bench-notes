@@ -152,7 +152,7 @@ are*, so you don't accidentally re-litigate settled decisions.
     in or not. OneDrive sync is a background add-on layered on top,
     never something the app depends on to function. The PWA header
     shows a "last synced" / "not signed in" / "syncing" / error
-    indicator (`syncBar` in `pwa/index.html`) so sync state is never
+    indicator (`syncBar` in `pwa/app.js`) so sync state is never
     ambiguous; tapping it when signed in offers to disconnect that
     device.
   - **Reconciliation — built and unit-tested.** Pull-then-merge-then-
@@ -185,7 +185,7 @@ are*, so you don't accidentally re-litigate settled decisions.
     side, no-op merge, one-sided edits, real conflicts, delete-vs-edit
     ordering, both-sides-delete). This isn't part of either app's
     deployed code — it's a scratch/reference copy for verifying the
-    algorithm in Node before hand-copying it into `pwa/index.html`
+    algorithm in Node before hand-copying it into `pwa/app.js`
     (and eventually `desktop/bench-notes.html`). **If the merge logic
     ever needs to change, update `sync-build/mergeEntries.js` first,
     re-run the tests, then copy the verified function into both apps**
@@ -206,7 +206,7 @@ are*, so you don't accidentally re-litigate settled decisions.
     chunked "upload session" for anything larger.
   - **Photo compression — built.** Every photo gets resized to max
     1600px on its longest side and re-encoded as JPEG quality 0.82 at
-    capture time (`compressImage()` in `pwa/index.html`), before it's
+    capture time (`compressImage()` in `pwa/app.js`), before it's
     ever written to IndexedDB — benefits local storage as much as sync
     bandwidth. Applies identically whether the photo came from the
     camera or the library picker (both inputs share the same
@@ -221,9 +221,13 @@ are*, so you don't accidentally re-litigate settled decisions.
     user has a 1TB Microsoft 365 plan on the account being used.
     Deliberately did not build a storage-quota warning (asked about,
     declined as unnecessary).
-  - Sync trigger points: on app open, after every save/delete,
-    and every 5 minutes while the app is open (`initMsal()`/
-    `saveEntry()`/`deleteEntry()` in `pwa/index.html`).
+  - Sync trigger points: on app open, after every save/delete, after
+    restore, and via the manual "Sync now" button (`initMsal()`/
+    `saveEntry()`/`deleteEntry()`/`handleRestoreFile()` in
+    `pwa/app.js`). The every-5-minute periodic background timer that
+    used to also trigger sync was deliberately removed — unnecessary
+    network/battery overhead for a 2-device, low-concurrency shop
+    setup where the other event-driven triggers already cover it.
   - **First real-world test found a real bug — fixed.** The redirect
     URI was originally computed dynamically from `window.location.
     pathname`. That matched Azure's registered value when typed
@@ -369,15 +373,24 @@ are*, so you don't accidentally re-litigate settled decisions.
 
 ## PWA specifics
 
+- **`pwa/index.html` + `pwa/style.css` + `pwa/app.js`** (split this
+  session): the app grew from a single ~1,950-line HTML file to a
+  point where that was hurting more than the zero-build-step
+  simplicity was helping. Split into plain `<link rel="stylesheet">`
+  and `<script src="app.js">` tags — no bundler introduced, still
+  zero-build-step. `service-worker.js`'s `APP_SHELL` cache list was
+  updated to include both new files; remember this any time a new
+  top-level file gets added, or it won't be available offline.
 - Storage is IndexedDB (entries + photo blobs) — no backend, since
   GitHub Pages is static hosting only.
-- **Manual JSON export** (added this session): always-visible "Export"
-  button in the header (`exportAllData()`). Bundles every entry plus
-  all photo blobs (base64-encoded) into one timestamped downloadable
-  JSON file — a portable backup independent of OneDrive/Microsoft
-  entirely. Added specifically as a safety net before OneDrive sync
-  goes in, per the user's past experience losing data to backends that
-  became unreachable — see Sync plan above.
+- **Manual JSON export** (`exportAllData()`, lives in Settings →
+  Backup — see "Settings panel" below for why it moved out of the
+  header). Bundles every entry plus all photo blobs (base64-encoded)
+  into one timestamped downloadable JSON file — a portable backup
+  independent of OneDrive/Microsoft entirely. Added specifically as a
+  safety net before OneDrive sync went in, per the user's past
+  experience losing data to backends that became unreachable — see
+  Sync plan above.
 - Camera capture uses `<input type="file" capture="environment">`,
   not `getUserMedia` — more reliable across iOS Safari + Android
   Chrome than a live camera stream.

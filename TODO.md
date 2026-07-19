@@ -83,7 +83,9 @@ _Last updated: PWA sign-in tested from a browser tab (worked); a real bug was fo
       is committed to the repo instead)
 - [x] `updatedAt` field added to entry schema, stamped on every create/edit
 - [x] Sync trigger points (PWA): on app open, after every save/delete,
-      every 5 min while open
+      after restore, and via the manual "Sync now" button — no
+      periodic background timer (removed; unnecessary overhead for a
+      2-device, low-concurrency setup)
 - [x] Merge logic: pull remote → union by entry `id` with local → write
       merged result locally → push merged result back — built, unit-tested
       in `sync-build/mergeEntries.js` before being copied into the app
@@ -165,6 +167,38 @@ for iOS entirely.
 - [ ] Test: custom confirm/alert popups (delete, discard unsaved entry,
       title-required nudge) look right and behave right — replaced the
       native browser ones this session
+
+## Candidates for removal — outdated code, not removed yet
+Deliberately kept rather than deleted outright — noted here so it gets
+revisited later instead of forgotten, and so nobody re-discovers "why
+is this still here" from scratch. Move an item out of this list (and
+actually delete the code) once its reasoning below is confirmed, or
+strike it if a reason turns up to keep it after all.
+
+- **PWA: "Compress older photos" backfill** (`compressExistingPhotos()`
+  in `pwa/app.js`, Settings → Backup). Only exists to catch photos
+  that predate capture-time compression — as of this note, the app's
+  only 2 real entries are already compressed, including their backups,
+  so it currently has nothing to do. Kept for now because desktop
+  OneDrive sync isn't built yet, and desktop has no photo compression
+  at all — once that sync exists, desktop-attached photos would start
+  flowing into the PWA uncompressed, which is exactly what this tool
+  cleans up. Revisit once desktop sync is built and its actual photo
+  pipeline is known (see next item — if desktop ends up file-select-
+  only, its photos should just get compressed the same way the PWA's
+  library-picker path already does, and this backfill may end up
+  genuinely unneeded rather than just currently idle).
+- **Desktop: webcam "Take photo…" capture** (`openCamera()`/
+  `closeCamera()`/`capturePhoto()` in `desktop/bench-notes.html`,
+  `getUserMedia`-based). Built by an earlier session, never tested
+  (see the Desktop app checklist above). Realistically unlikely to see
+  real use — photos of small-engine repair work are far more likely to
+  get taken on a phone and transferred/selected on the desktop than
+  captured live via a laptop's built-in webcam pointed at a workbench.
+  "Attach from files…" (file-select) is the realistic desktop photo
+  path. Not removed yet since it hasn't actually been confirmed
+  unused — revisit once the desktop app has been used for real for a
+  while, rather than removing an untested feature purely on a guess.
 
 ## Known rough edges (not urgent, just noted)
 - If you attach a photo while editing an entry and then hit Cancel instead
