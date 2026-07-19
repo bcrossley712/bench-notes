@@ -426,7 +426,6 @@ const SYNC_LAST_KEY = 'bn_last_synced';
 
 let msalInstance = null;
 let syncInProgress = false;
-let periodicSyncTimer = null;
 
 // Same merge algorithm as sync-build/mergeEntries.js (kept in sync by hand —
 // see that file's test suite for the scenarios this logic is verified
@@ -527,9 +526,7 @@ async function initMsal(){
 
   updateSyncBarForState();
   if(isSignedIn()){
-    syncNow();
-    if(periodicSyncTimer) clearInterval(periodicSyncTimer);
-    periodicSyncTimer = setInterval(syncNow, 5 * 60 * 1000); // every 5 min while app is open
+    syncNow(); // on-open sync only — no periodic background timer; also triggered by save/delete/restore and the manual "Sync now" button
   }
 }
 
@@ -564,7 +561,6 @@ async function signInOneDrive(){
 
 async function signOutOneDrive(){
   if(!msalInstance) return;
-  if(periodicSyncTimer){ clearInterval(periodicSyncTimer); periodicSyncTimer = null; }
   await msalInstance.logoutRedirect();
 }
 

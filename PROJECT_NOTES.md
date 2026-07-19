@@ -35,11 +35,15 @@ lives in the README files.
   include the files actually touched by the change, not the whole
   repo. The user uses their own "download all" zip option when they
   want everything.
-- **When packaging, include every file touched since the *last*
-  package** — not just the files touched in the most recent change.
-  If a file was edited a few turns ago and never actually delivered
-  (e.g. because packaging was deferred), it's still owed next time
-  "package it up" is said. Missed this once already — don't repeat it.
+- **When packaging, include only files changed since the *last actual
+  delivery* to the user** — i.e. since files were last handed over via
+  download, not since the last git push (those are two different
+  events; a file can be delivered for local testing well before it's
+  pushed). Don't re-include a file that was already delivered and
+  hasn't changed since. Don't drop a file that changed but was never
+  actually delivered (e.g. packaging got deferred a few turns back) —
+  it's still owed. Tracking what's been delivered vs. pushed is the
+  user's own responsibility, not something to log here.
 - User's local path: `C:\source\bench-notes` — the repo root.
 - User is comfortable with Node/npm tooling; explanations can assume
   that baseline rather than over-explaining basic terminal usage.
@@ -47,6 +51,16 @@ lives in the README files.
   it off, and being upfront about anything that couldn't be verified
   in a sandboxed environment (e.g. Electron's actual GUI, real device
   camera/install behavior).
+- **Check desktop/PWA parity on every change, and say so either way.**
+  Before finalizing a change to one app, explicitly check whether the
+  other app needs the same fix/feature, and state the conclusion —
+  "no desktop equivalent needed, since desktop doesn't have OneDrive
+  sync yet" is a fine answer, silently not mentioning it isn't. Shared
+  *data format* parity (add a field to one app, add it to both — see
+  "Key architectural decisions" above) is a separate, narrower rule
+  from this one: most *behavioral* changes (sync frequency, photo
+  compression, restore/import) only apply to whichever app actually
+  has that feature built, which today is PWA-only for all three.
 
 ## What this is
 
