@@ -57,7 +57,7 @@
   }
   .dot{width:7px; height:7px; border-radius:50%; background:var(--muted); flex:none; display:inline-block;}
   .dot.state-synced{background:#4CAF50;}
-  .dot.state-syncing{background:var(--orange);}
+  .dot.state-syncing{background:var(--brass);}
   .dot.state-error{background:var(--danger);}
   #settingsGearBtn .dot{position:absolute; top:3px; right:3px; width:8px; height:8px; border:1.5px solid var(--panel);}
   #syncStatusText.clickable{cursor:pointer; text-decoration:underline;}
@@ -256,6 +256,7 @@
         <span id="syncStatusText" onclick="onSyncStatusClick()">Not signed in</span>
       </div>
       <button class="modal-btn confirm" id="syncActionBtn" onclick="onSyncButtonClick()">Connect OneDrive</button>
+      <button class="modal-btn cancel" id="disconnectBtn" onclick="onSyncStatusClick()" style="display:none;">Disconnect</button>
     </div>
 
     <div class="settings-section">
@@ -814,10 +815,15 @@ function setSyncBar(state, message){
   const panelDot = document.getElementById('syncStatusDot');
   const text = document.getElementById('syncStatusText');
   const btn = document.getElementById('syncActionBtn');
+  const disconnectBtn = document.getElementById('disconnectBtn');
 
   gearDot.className = 'dot state-' + state;
   panelDot.className = 'dot state-' + state;
   text.classList.toggle('clickable', state === 'synced');
+  // Checked directly rather than trusting `state`: setSyncBar('error', ...)
+  // also fires from a *failed* sign-in attempt, when the device was never
+  // actually signed in — the button should stay hidden in that case.
+  disconnectBtn.style.display = isSignedIn() ? 'inline-block' : 'none';
 
   if(state === 'synced'){
     text.textContent = formatLastSynced();
