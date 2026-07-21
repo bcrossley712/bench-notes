@@ -1486,7 +1486,7 @@ function openDetail(id){
       <span style="width:60px;"></span>
     </div>
     <div class="stat-line" style="padding-left:0;">${SOURCE_LABELS[entry.source]||''} · ${entry.dateAdded||''}</div>
-    <div class="status-badge status-${getEntryStatus(entry)}" style="margin-top:2px;">${STATUS_LABELS[getEntryStatus(entry)]}${entry.completedAt ? ' · ' + new Date(entry.completedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : ''}</div>
+    <div class="status-badge status-${getEntryStatus(entry)}" style="margin-top:2px;">${STATUS_LABELS[getEntryStatus(entry)]}${entry.completedAt ? ' · ' + new Date(entry.completedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ' ' + new Date(entry.completedAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}) : ''}</div>
     ${entry.completedAt ? `<button class="icon-btn" style="margin:2px 0 0;" onclick="editCompletedDate('${entry.id}')" aria-label="Edit completed date/time" title="Edit completed date/time">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
     </button>` : ''}

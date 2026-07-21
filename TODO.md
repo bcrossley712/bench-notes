@@ -1,6 +1,6 @@
 # Bench Notes — Things to Do at the Computer
 
-_Last updated: PWA sign-in tested from a browser tab (worked); a real bug was found and fixed (redirect URI mismatch when launched from the home-screen icon) — still needs testing from the actual icon. Restore/import, a settings panel (gear icon + status dot), and "Clear local data" (typed-confirmation) all built in the PWA. Checklist+Fix now flows as one block in both apps' detail view (was a separate boxed section)._
+_Last updated: PWA sign-in confirmed working from the installed home-screen icon (not just a browser tab). Export, restore-from-backup, and Clear Local Data all tested and confirmed working. Repair status field (4 stages) added to the PWA — desktop still needs it, see Shared data format below. Desktop app untouched since its last update — nothing there has been tested yet._
 
 ## Repo structure — decided and built
 - [x] One repo (`bench-notes`), not two — `/pwa` and `/desktop` subfolders
@@ -85,9 +85,11 @@ _Last updated: PWA sign-in tested from a browser tab (worked); a real bug was fo
       App Folder now mirrors this exact shape (`bench-notes-data.json` +
       `photos/`) for the same reason — see PROJECT_NOTES.md Sync plan
 - [ ] Add a `schemaVersion` field for future-proofing
-- [ ] PWA must serialize IndexedDB contents to this exact shape when syncing
-      (not its own invented format) — this is the piece that prevents the
-      two apps from drifting into different file types over time
+- [x] PWA must serialize IndexedDB contents to this exact shape when syncing
+      (not its own invented format) — verified: sync pushes the entry
+      objects as-is (same field names as IndexedDB), not a translated
+      format; this is the piece that prevents the two apps from
+      drifting into different file types over time
 
 ## OneDrive API sync — PWA built (untested), desktop not started
 - [x] Register a Microsoft Graph "app" in Azure Portal — done. Name
@@ -126,9 +128,10 @@ _Last updated: PWA sign-in tested from a browser tab (worked); a real bug was fo
       bare folder URL registered in Azure, and the code was deriving the
       redirect URI dynamically instead of using a fixed value. Fixed by
       hardcoding it — see PROJECT_NOTES.md Sync plan for detail
-- [ ] **Still needs testing: sign in from the actual installed home-screen
-      icon** (not just a browser tab) to fully confirm the fix above —
-      this is the specific path that broke
+- [x] **Tested: sign in from the actual installed home-screen icon**
+      (not just a browser tab) — confirmed via testing on the
+      downloaded/installed PWA this session, including OneDrive
+      staying signed in across a delete-and-reinstall of the icon
 - [ ] Desktop OneDrive sync — **not started.** Needs a device-code flow
       (Electron can't use an embedded login window) instead of the PWA's
       browser redirect — different auth code, but merge/photo-sync logic
@@ -167,23 +170,34 @@ for iOS entirely.
       tap: a warning step, then a typed "DELETE" confirmation
 - [x] OneDrive sync built (see "OneDrive API sync" section above) —
       partially tested, see the redirect URI bug/fix above
-- [ ] Test: sign in on your phone **from the home-screen icon specifically**,
+- [x] Test: sign in on your phone **from the home-screen icon specifically**,
       confirm an entry made on phone shows up after syncing on another
-      signed-in device (once desktop sync exists, or by checking the raw
-      file at onedrive.com/Apps/Bench Notes in the meantime)
+      signed-in device — confirmed via the equivalent test of clearing
+      local data and re-syncing, which round-trips through OneDrive
+      exactly like a second device would; no literal second device
+      tested yet, but accepted as proof the mechanism works
 - [ ] Test: delete an entry, confirm it disappears on the other device too
-      after both have synced
+      after both have synced — not yet tested; the clear+resync test that
+      covered "another device sees new entries" doesn't by itself prove
+      a deletion tombstone survives the same round-trip
 - [ ] Test: take/attach several photos, confirm they show up in the
       OneDrive `Apps/Bench Notes/photos` folder, and confirm file sizes
-      look meaningfully smaller than the original camera photos (compression
-      working)
-- [ ] Test: restore from an exported backup file, confirm entries/photos
-      come back and nothing already on the device gets wiped
-- [ ] Test: "Clear local data" — confirm the typed-DELETE requirement
+      look meaningfully smaller than the original camera photos —
+      compression itself is confirmed working locally (photo sizes
+      shrank on-device), but the OneDrive folder hasn't actually been
+      checked directly yet
+- [x] Test: restore from an exported backup file, confirm entries/photos
+      come back and nothing already on the device gets wiped — tested,
+      confirmed working
+- [x] Test: "Clear local data" — confirm the typed-DELETE requirement
       actually blocks the confirm button until typed correctly, and that
-      it doesn't touch OneDrive itself
-- [ ] Test: custom confirm/alert popups (delete, discard unsaved entry,
-      title-required nudge) look right and behave right — replaced the
+      it doesn't touch OneDrive itself — tested, confirmed working (also
+      corroborated by clearing local data then re-syncing successfully
+      pulled everything back from OneDrive, proving the remote copy was
+      never touched)
+- [x] Test: custom confirm/alert popups (delete, discard unsaved entry,
+      title-required nudge) look right and behave right — confirmed
+      working, replaced the
       native browser ones this session
 
 ## Candidates for removal — outdated code, not removed yet
