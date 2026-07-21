@@ -2,7 +2,10 @@
 
 A troubleshooting reference and work-order log for small engine repair —
 built to capture 40+ years of hands-on knowledge before it walks out the
-door, and to keep growing as new problems get solved.
+door, and to keep growing as new problems get solved. It also tracks
+active repairs through to completion (status: Needs Diagnosis → Waiting
+on Parts / In Progress → Complete) — the two purposes share one app on
+purpose; see PROJECT_NOTES.md "What this is" for why.
 
 Two apps, one shared data shape:
 

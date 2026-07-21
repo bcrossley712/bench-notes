@@ -61,6 +61,24 @@ _Last updated: PWA sign-in tested from a browser tab (worked); a real bug was fo
 - [x] Customer fields added to both apps identically: customerName,
       customerPhone, equipmentModel, equipmentSerial, dateReceived,
       customerRequest (kept separate from title/symptom, as decided)
+- [ ] **PARITY GAP — PWA only, desktop needs this next session:** `status`
+      (one of `needs-diagnosis` / `waiting-parts` / `in-progress` /
+      `complete`, defaults to `needs-diagnosis`) and `completedAt`
+      (timestamp, stamped when status becomes `complete`, cleared if
+      it moves away from `complete` again) added to the PWA entry
+      schema and UI (dropdown in the add/edit sheet, color-coded board
+      badge, filter chips). Desktop's add/edit form and board/list view
+      need the same field and equivalent UI before the two apps'
+      entries can be considered the same shape again — this isn't
+      optional polish, it's the exact kind of drift the "PWA must
+      serialize to this exact shape" rule below exists to prevent.
+      Old entries (desktop's and the PWA's own pre-this-change ones)
+      have no `status` at all — the PWA falls back live via
+      `getEntryStatus()` (needs-diagnosis heuristic preserved, else
+      defaults to in-progress, never silently assumed complete);
+      desktop should use the same fallback logic, not a one-time
+      migration script, so it stays correct for entries synced in from
+      elsewhere too.
 - [ ] Define + document: `bench_notes_data.json` (array of entries, same
       field names on both apps) + a `photos/` folder of real image files,
       named to match filenames referenced in the JSON. Note: the OneDrive

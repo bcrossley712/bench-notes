@@ -69,6 +69,18 @@ so the owner's son can capture 40+ years of his dad's diagnostic
 knowledge before his dad retires, and keep building on it afterward.
 Two apps, one shared entry format:
 
+**On scope:** this started as a pure knowledge log (symptom → cause →
+fix, for future reference) and has grown real active work-order
+tracking on top of that (customer intake, and now repair status —
+Needs Diagnosis / Waiting on Parts / In Progress / Complete — see PWA
+specifics below). That's a deliberate direction, not scope creep to
+walk back: the knowledge-capture core hasn't gone anywhere, entries
+still work fine with just a symptom/cause/fix and nothing else filled
+in, but the app also now earns its keep as the thing actually tracking
+what's on the bench. Worth remembering if a future change seems to
+"belong" in a different, more focused app — it doesn't; this is one
+app doing both jobs on purpose.
+
 - **`/desktop`** — Electron app, Windows, primary editing tool at the
   bench. Direct file storage (no browser storage fragility).
 - **`/pwa`** — installed web app (Android + iPhone), deployed via
@@ -274,6 +286,8 @@ are*, so you don't accidentally re-litigate settled decisions.
     embedded login window. The merge/photo-sync logic itself should
     be portable from the PWA almost as-is once auth is wired up.
 
+  - **Both apps use the exact same entry field names, deliberately** —
+  not just a similar shape, but identical field
   names so a future sync layer doesn't have to translate between two
   formats. Current entry fields: `title`, `engineModel`, `engineCode`,
   `source`, `causes`, `steps`, `fix`, `partsUsed`, `notes`, `photos[]`,
@@ -373,6 +387,30 @@ are*, so you don't accidentally re-litigate settled decisions.
 
 ## PWA specifics
 
+- **Repair status** (`status` field, added this session): one of
+  `needs-diagnosis` (default) / `waiting-parts` / `in-progress` /
+  `complete`, set via a dropdown in the add/edit sheet, shown as a
+  color-coded badge on board cards and in the detail view, filterable
+  via the status chip row (`getEntryStatus()`/`STATUS_LABELS`/
+  `saveEntry()` in `pwa/app.js`). Replaced the old binary
+  `isNeedsDiagnosis()` heuristic (still used internally as the
+  fallback for entries with no explicit status — see its comment) —
+  don't reintroduce a second, parallel status concept. `completedAt`
+  (timestamp) is stamped the moment status becomes `complete`, and
+  cleared if it moves away from `complete` again, so it never shows a
+  stale completion date on a reopened entry. Deliberately auto-stamped
+  with no date/time field in the normal add/edit form — that's the
+  right default for the common case (you mark it done right when it's
+  actually done), so it shouldn't cost an extra tap every time. For
+  the occasional case of backdating/correcting it (catching up records
+  days later, fixing old entries), there's a separate "Edit completed
+  date/time" pencil-icon button in the detail view (`editCompletedDate()`/
+  `showDateTimePrompt()` in `pwa/app.js`) — deliberately not in the
+  main form, so it doesn't tempt second-guessing an already-accurate
+  auto-stamp during normal use. Completed entries stay on
+  the board by default (nothing auto-hides) — filter to hide them if
+  wanted. **Desktop parity gap — see TODO.md Shared data format**:
+  desktop has neither the field nor the UI for this yet.
 - **`pwa/index.html` + `pwa/style.css` + `pwa/app.js`** (split this
   session): the app grew from a single ~1,950-line HTML file to a
   point where that was hurting more than the zero-build-step

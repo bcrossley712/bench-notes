@@ -125,7 +125,13 @@
   }
   .tag-card .tag-num{position:absolute; top:14px; left:30px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft);}
   .tag-card .source-mark{position:absolute; top:12px; right:12px; font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; padding:3px 7px; border-radius:10px;}
-  .status-badge{display:inline-block; font-family:'Oswald',sans-serif; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:#7a3a1a; background:#E85D2530; border:1px solid #E85D2560; padding:3px 9px; border-radius:2px; margin-bottom:8px;}
+  .status-badge{display:inline-block; font-family:'Oswald',sans-serif; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; padding:3px 9px; border-radius:2px; margin-bottom:8px;}
+  .status-badge.status-needs-diagnosis{color:#8a2a1a; background:#C4432E30; border:1px solid #C4432E60;}
+  .status-badge.status-waiting-parts{color:#7a5f10; background:#C9A22730; border:1px solid #C9A22760;}
+  .status-badge.status-in-progress{color:#7a3a1a; background:#E85D2530; border:1px solid #E85D2560;}
+  .status-badge.status-complete{color:#1f6b2e; background:#4CAF5030; border:1px solid #4CAF5060;}
+  .icon-btn{background:none; border:none; padding:4px; margin:0; color:var(--brass); opacity:0.75; cursor:pointer; display:inline-flex; align-items:center; justify-content:center;}
+  .icon-btn:hover, .icon-btn:active{opacity:1;}
   .source-dad{background:#C9A22733; color:#8a6d10;}
   .source-experience{background:#4a7a4a33; color:#2f5c2f;}
   .source-ai{background:#3a6ea533; color:#204d78;}

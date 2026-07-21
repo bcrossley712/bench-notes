@@ -78,6 +78,53 @@ function showTypedConfirm(message, requiredText, opts){
   });
 }
 
+// Small helper: JS timestamp -> the local string format <input
+// type="datetime-local"> expects.
+function toDatetimeLocalValue(ts){
+  const d = new Date(ts);
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// For backdating/correcting a timestamp (currently just completedAt) —
+// deliberately separate from the normal add/edit form, since this is an
+// occasional deliberate override, not something that should sit in the
+// everyday editing flow.
+function showDateTimePrompt(message, initialTimestamp, opts){
+  opts = opts || {};
+  return new Promise(resolve=>{
+    const overlay = document.getElementById('modalOverlay');
+    const msgEl = document.getElementById('modalMessage');
+    msgEl.textContent = '';
+    msgEl.appendChild(document.createTextNode(message));
+
+    const input = document.createElement('input');
+    input.type = 'datetime-local';
+    input.value = toDatetimeLocalValue(initialTimestamp || Date.now());
+    input.style.marginTop = '12px';
+    msgEl.appendChild(input);
+
+    const actions = document.getElementById('modalActions');
+    actions.innerHTML = '';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'modal-btn cancel';
+    cancelBtn.textContent = opts.cancelLabel || 'Cancel';
+    cancelBtn.onclick = ()=>{ overlay.classList.remove('open'); resolve(null); };
+    const confirmBtn = document.createElement('button');
+    confirmBtn.className = 'modal-btn confirm';
+    confirmBtn.textContent = opts.confirmLabel || 'Save';
+    confirmBtn.onclick = ()=>{
+      const val = input.value ? new Date(input.value).getTime() : null;
+      overlay.classList.remove('open');
+      resolve(val);
+    };
+    actions.appendChild(cancelBtn);
+    actions.appendChild(confirmBtn);
+    overlay.classList.add('open');
+    input.focus();
+  });
+}
+
 // ---------- OneDrive sync ----------
 // Design (see PROJECT_NOTES.md "Sync plan"): sign in with a single shared
 // Microsoft account across all devices; read/write one JSON file inside
@@ -894,6 +941,20 @@ let draftPhotos = [];         // array of photo ids attached to entry being edit
 let photoUrlCache = {};       // photo id -> object URL
 
 const SOURCE_LABELS = {dad:'From Dad', experience:'My experience', ai:'AI-assisted', manual:'Service manual'};
+const STATUS_LABELS = {
+  'needs-diagnosis': 'Needs Diagnosis',
+  'waiting-parts': 'Waiting on Parts',
+  'in-progress': 'In Progress',
+  'complete': 'Complete'
+};
+// Entries saved before this field existed have no `status`. Rather than a
+// one-time migration, fall back live: old entries with nothing filled in
+// still read as "needs diagnosis" (same heuristic as before), anything
+// else defaults to "in progress" rather than guessing it might be done —
+// never silently mark old work as Complete without the user saying so.
+function getEntryStatus(entry){
+  return entry.status || (isNeedsDiagnosis(entry) ? 'needs-diagnosis' : 'in-progress');
+}
 
 const CHECKLIST_ITEMS = [
   ['sparkTest','Spark Test'], ['sparkPlug','Spark Plug'], ['compressionTest','Compression Test'],
@@ -1024,7 +1085,7 @@ function renderEngineFilters(){
 function matchesFilters(entry, q){
   if(engineFilter !== 'all' && entry.engineModel !== engineFilter) return false;
   if(sourceFilter !== 'all' && entry.source !== sourceFilter) return false;
-  if(statusFilter === 'needs-diagnosis' && !isNeedsDiagnosis(entry)) return false;
+  if(statusFilter !== 'all' && getEntryStatus(entry) !== statusFilter) return false;
   if(q){
     const hay = [entry.title, entry.engineModel, entry.engineCode, entry.causes, entry.steps, entry.fix,
       entry.partsUsed, entry.notes, entry.customerName, entry.customerPhone,
@@ -1063,7 +1124,7 @@ function render(){
   filtered.forEach(entry=>{
     const num = String(entry.orderNumber || 0).padStart(3,'0');
     const hasPhotos = entry.photos && entry.photos.length > 0;
-    const needsDiag = isNeedsDiagnosis(entry);
+    const status = getEntryStatus(entry);
     const headline = entry.title || entry.customerName || 'Untitled entry';
     const card = document.createElement('div');
     card.className = 'tag-card';
@@ -1072,7 +1133,7 @@ function render(){
       <div class="grommet"></div>
       <div class="tag-num">#${num}</div>
       <div class="source-mark source-${entry.source}">${SOURCE_LABELS[entry.source]||''}</div>
-      ${needsDiag ? `<div class="status-badge">Needs Diagnosis</div>` : ''}
+      <div class="status-badge status-${status}">${STATUS_LABELS[status]}</div>
       ${entry.engineModel ? `<div class="engine-badge">${escapeHtml(entry.engineModel)}</div>` : ''}
       <h3>${escapeHtml(headline)}</h3>
       ${entry.title && entry.customerName ? `<div class="mono" style="font-size:11.5px; color:var(--ink-soft); margin-bottom:4px;">👤 ${escapeHtml(entry.customerName)}</div>` : ''}
@@ -1095,7 +1156,7 @@ function openSheet(entry){
   sheetIsNewUnsaved = !entry;
   const e = entry || {title:'',engineModel:'',engineCode:'',source:'dad',causes:'',steps:'',fix:'',notes:'',photos:[],
     customerName:'',customerPhone:'',equipmentModel:'',equipmentSerial:'',dateReceived:'',customerRequest:'',
-    partsUsed:'',checklist:{}};
+    partsUsed:'',checklist:{},status:'needs-diagnosis'};
 
   draftPhotos = entry && entry.photos ? [...entry.photos] : [];
 
@@ -1104,6 +1165,15 @@ function openSheet(entry){
       <button class="sheet-btn muted" onclick="closeSheet()">Cancel</button>
       <h2>${entry ? 'Edit Entry' : 'New Entry'}</h2>
       <button class="sheet-btn" onclick="saveEntry()">Save</button>
+    </div>
+
+    <div class="field" style="margin:0 16px 16px;">
+      <label>Status</label>
+      <select id="f_status">
+        ${Object.entries(STATUS_LABELS).map(([val,label])=>
+          `<option value="${val}" ${getEntryStatus(e)===val ? 'selected' : ''}>${label}</option>`
+        ).join('')}
+      </select>
     </div>
 
     <div class="form-section">
@@ -1342,6 +1412,7 @@ async function saveEntry(){
 
   const data = {
     title,
+    status: document.getElementById('f_status').value,
     engineModel: document.getElementById('f_engineModel').value.trim(),
     engineCode: document.getElementById('f_engineCode').value.trim(),
     source: document.getElementById('f_source').value,
@@ -1363,11 +1434,21 @@ async function saveEntry(){
   let entry;
   if(editingId){
     const existing = entries.find(en=>en.id===editingId);
-    entry = {...existing, ...data, updatedAt: Date.now()};
+    // Stamp completedAt the moment status becomes Complete; clear it if
+    // status moves away from Complete again, since a cleared/reopened
+    // entry shouldn't keep showing a stale completion date.
+    let completedAt = existing.completedAt || null;
+    if(data.status === 'complete' && getEntryStatus(existing) !== 'complete'){
+      completedAt = Date.now();
+    } else if(data.status !== 'complete'){
+      completedAt = null;
+    }
+    entry = {...existing, ...data, completedAt, updatedAt: Date.now()};
   } else {
     const nextNum = entries.reduce((max,e)=> e.orderNumber ? Math.max(max,e.orderNumber) : max, 0) + 1;
     entry = {
-      id: uid(), ...data, orderNumber: nextNum, createdAt: Date.now(), updatedAt: Date.now(),
+      id: uid(), ...data, completedAt: data.status === 'complete' ? Date.now() : null,
+      orderNumber: nextNum, createdAt: Date.now(), updatedAt: Date.now(),
       dateAdded: new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})
     };
   }
@@ -1375,6 +1456,20 @@ async function saveEntry(){
   await loadEntries();
   sheetIsNewUnsaved = false;
   closeSheet();
+  if(isSignedIn()) syncNow(); // sync trigger point: after every save
+}
+
+async function editCompletedDate(id){
+  const entry = entries.find(e=>e.id===id);
+  if(!entry || !entry.completedAt) return;
+  const newTs = await showDateTimePrompt(
+    'Set the actual completed date/time for this entry — useful for catching up records after the fact, not needed for day-to-day use.',
+    entry.completedAt
+  );
+  if(newTs === null) return; // cancelled, leave completedAt untouched
+  await saveEntryToDB({...entry, completedAt: newTs, updatedAt: Date.now()});
+  await loadEntries();
+  openDetail(id); // refresh the open detail view with the corrected date
   if(isSignedIn()) syncNow(); // sync trigger point: after every save
 }
 
@@ -1391,6 +1486,10 @@ function openDetail(id){
       <span style="width:60px;"></span>
     </div>
     <div class="stat-line" style="padding-left:0;">${SOURCE_LABELS[entry.source]||''} · ${entry.dateAdded||''}</div>
+    <div class="status-badge status-${getEntryStatus(entry)}" style="margin-top:2px;">${STATUS_LABELS[getEntryStatus(entry)]}${entry.completedAt ? ' · ' + new Date(entry.completedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : ''}</div>
+    ${entry.completedAt ? `<button class="icon-btn" style="margin:2px 0 0;" onclick="editCompletedDate('${entry.id}')" aria-label="Edit completed date/time" title="Edit completed date/time">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+    </button>` : ''}
     ${(entry.customerName || entry.customerPhone || entry.dateReceived || entry.customerRequest) ? `<div class="detail-section"><div class="drawer-label">Customer</div><p>${[
         entry.customerName && escapeHtml(entry.customerName),
         entry.customerPhone && escapeHtml(entry.customerPhone),
