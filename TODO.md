@@ -232,6 +232,36 @@ strike it if a reason turns up to keep it after all.
   unused — revisit once the desktop app has been used for real for a
   while, rather than removing an untested feature purely on a guess.
 
+## Future idea: QuickBooks invoice export — not started, blocked on one question
+Genuinely worth doing, not a pipedream — but the right approach depends
+entirely on **QuickBooks Online vs. QuickBooks Desktop**, which hasn't
+been confirmed yet (guessed Desktop, not verified). Don't start building
+either path until that's confirmed — they're different enough in kind
+that guessing wrong wastes real effort, not just time.
+
+- **If QuickBooks Online:** real REST API, JSON, OAuth2 — comparable in
+  kind to the OneDrive integration already built in this app (sign in
+  once, get a token, make API calls). Could genuinely create a real
+  invoice directly via API, prefilled from an entry.
+- **If QuickBooks Desktop (the likelier guess):** no REST API at all.
+  The realistic path is an **IIF file export** — a tab-separated text
+  file QuickBooks Desktop can natively import (File → Utilities →
+  Import → IIF Files) that creates a fully-formed invoice directly,
+  fields already in place — not a clipboard paste, an actual import,
+  which is what makes it work despite the invoice having multiple
+  separate fields. An entry's customer info, parts used, and fix
+  description would map to the IIF's customer/line-item structure.
+  Real caveats, not to be undersold: the IIF format is genuinely
+  finicky to build correctly (specific `TRNS`/`SPL` row structure),
+  has limited error checking (can import silently wrong rather than
+  erroring), behavior has shifted across QuickBooks Desktop versions
+  over the years so it'd need testing against the actual installed
+  version, and it's a manual "export then import" step each time, not
+  live/automatic. Standard advice is to back up the QuickBooks company
+  file before each import, since it's not easily undoable.
+- Either way: **not started**, no code written. Revisit once the
+  QuickBooks version is actually confirmed.
+
 ## Known rough edges (not urgent, just noted)
 - If you attach a photo while editing an entry and then hit Cancel instead
   of Save, that image file stays on disk unused rather than getting cleaned

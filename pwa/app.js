@@ -1038,6 +1038,33 @@ function escapeHtml(str){
   return div.innerHTML;
 }
 
+// Formats a phone input live as (XXX) XXX-XXXX while typing — strips
+// anything that isn't a digit first, so pasted or partially-typed input
+// still comes out clean rather than accumulating stray punctuation.
+function formatPhoneInput(input){
+  const digits = input.value.replace(/\D/g, '').slice(0, 10);
+  let formatted = digits;
+  if(digits.length > 6){
+    formatted = `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`;
+  } else if(digits.length > 3){
+    formatted = `(${digits.slice(0,3)}) ${digits.slice(3)}`;
+  } else if(digits.length > 0){
+    formatted = `(${digits}`;
+  }
+  input.value = formatted;
+  input.setSelectionRange(formatted.length, formatted.length);
+}
+
+// Uppercases an input live as-you-type — used for model/serial/code
+// fields, where shop convention is all-caps. Preserves cursor position
+// (uppercasing doesn't change string length, so this is safe) rather
+// than letting the cursor jump to the end on every keystroke.
+function uppercaseInput(input){
+  const pos = input.selectionStart;
+  input.value = input.value.toUpperCase();
+  input.setSelectionRange(pos, pos);
+}
+
 async function getPhotoUrl(id){
   if(photoUrlCache[id]) return photoUrlCache[id];
   const record = await idbGet('photos', id);
@@ -1185,7 +1212,7 @@ function openSheet(entry){
         </div>
         <div class="field">
           <label>Phone Number</label>
-          <input type="text" id="f_customerPhone" placeholder="e.g. 555-0123" value="${escapeHtml(e.customerPhone)}">
+          <input type="text" id="f_customerPhone" placeholder="e.g. (555) 012-3456" value="${escapeHtml(e.customerPhone)}" oninput="formatPhoneInput(this)">
         </div>
       </div>
       <div class="field">
@@ -1203,23 +1230,23 @@ function openSheet(entry){
       <div class="field-row">
         <div class="field">
           <label>Model</label>
-          <input type="text" id="f_equipmentModel" placeholder="e.g. Toro 20370" value="${escapeHtml(e.equipmentModel)}">
+          <input type="text" id="f_equipmentModel" placeholder="e.g. TORO 20370" value="${escapeHtml(e.equipmentModel)}" oninput="uppercaseInput(this)">
         </div>
         <div class="field">
           <label>Serial</label>
-          <input type="text" id="f_equipmentSerial" placeholder="e.g. SN 12345" value="${escapeHtml(e.equipmentSerial)}">
+          <input type="text" id="f_equipmentSerial" placeholder="e.g. 12345" value="${escapeHtml(e.equipmentSerial)}" oninput="uppercaseInput(this)">
         </div>
       </div>
       <div class="form-subsection">
         <div class="form-subsection-title">Engine</div>
         <div class="field-row">
           <div class="field">
-            <label>Model</label>
-            <input type="text" id="f_engineModel" placeholder="e.g. Briggs 500" value="${escapeHtml(e.engineModel)}">
+            <label>Model/Type</label>
+            <input type="text" id="f_engineModel" placeholder="e.g. BRIGGS 500" value="${escapeHtml(e.engineModel)}" oninput="uppercaseInput(this)">
           </div>
           <div class="field">
             <label>Code</label>
-            <input type="text" id="f_engineCode" placeholder="e.g. 21B807" value="${escapeHtml(e.engineCode)}">
+            <input type="text" id="f_engineCode" placeholder="e.g. 21B807" value="${escapeHtml(e.engineCode)}" oninput="uppercaseInput(this)">
           </div>
         </div>
       </div>
@@ -1492,15 +1519,15 @@ function openDetail(id){
     </button>` : ''}
     ${(entry.customerName || entry.customerPhone || entry.dateReceived || entry.customerRequest) ? `<div class="detail-section"><div class="drawer-label">Customer</div><p>${[
         entry.customerName && escapeHtml(entry.customerName),
-        entry.customerPhone && escapeHtml(entry.customerPhone),
-        entry.dateReceived && ('Received ' + escapeHtml(entry.dateReceived))
+        entry.customerPhone && (`<span class="mono" style="color:var(--muted);">Phone:</span> ` + escapeHtml(entry.customerPhone)),
+        entry.dateReceived && (`<span class="mono" style="color:var(--muted);">Received:</span> ` + escapeHtml(entry.dateReceived))
       ].filter(Boolean).join('<br>')}</p>${entry.customerRequest ? `<p style="margin-top:8px;"><span class="mono" style="color:var(--muted); font-size:11px;">REQUEST</span><br>${escapeHtml(entry.customerRequest)}</p>` : ''}</div>` : ''}
     ${(entry.equipmentModel || entry.equipmentSerial || entry.engineModel || entry.engineCode) ? `<div class="detail-section"><div class="drawer-label">Equipment</div><p>${[
-        entry.equipmentModel && escapeHtml(entry.equipmentModel),
-        entry.equipmentSerial && ('SN ' + escapeHtml(entry.equipmentSerial))
+        entry.equipmentModel && (`<span class="mono" style="color:var(--muted);">Model:</span> ` + escapeHtml(entry.equipmentModel)),
+        entry.equipmentSerial && (`<span class="mono" style="color:var(--muted);">SN:</span> ` + escapeHtml(entry.equipmentSerial))
       ].filter(Boolean).join('<br>')}</p>${(entry.engineModel || entry.engineCode) ? `<p style="margin-top:8px;"><span class="mono" style="color:var(--muted); font-size:11px;">ENGINE</span><br>${[
-        entry.engineModel && escapeHtml(entry.engineModel),
-        entry.engineCode && escapeHtml(entry.engineCode)
+        entry.engineModel && (`<span class="mono" style="color:var(--muted);">Model/Type:</span> ` + escapeHtml(entry.engineModel)),
+        entry.engineCode && (`<span class="mono" style="color:var(--muted);">Code:</span> ` + escapeHtml(entry.engineCode))
       ].filter(Boolean).join('<br>')}</p>` : ''}</div>` : ''}
     ${entry.causes ? `<div class="detail-section"><div class="drawer-label">Likely Causes</div><p>${escapeHtml(entry.causes)}</p></div>` : ''}
     ${entry.steps ? `<div class="detail-section"><div class="drawer-label">Diagnostic Steps</div><p>${escapeHtml(entry.steps)}</p></div>` : ''}
