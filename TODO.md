@@ -1,6 +1,6 @@
 # Bench Notes — Things to Do at the Computer
 
-_Last updated: PWA sign-in confirmed working from the installed home-screen icon (not just a browser tab). Export, restore-from-backup, and Clear Local Data all tested and confirmed working. Repair status field (4 stages) added to the PWA — desktop still needs it, see Shared data format below. Desktop app untouched since its last update — nothing there has been tested yet._
+_Last updated: PWA sign-in confirmed working from the installed home-screen icon, OneDrive sync/restore/Clear Local Data all tested and confirmed working. Repair status field (4 stages) added to the PWA — desktop still needs it, see Shared data format below. Field label consistency pass done (Model/Type, Code, SN, Phone, Received callouts) plus live phone formatting and auto-uppercase on model/serial/code fields. QuickBooks invoice export confirmed as QuickBooks Pro 2014 (Desktop, IIF path) — documented as a future idea, not started. Desktop app untouched since its last update — nothing there has been tested yet. Live open decision: possibly consolidating to PWA-only instead of maintaining desktop separately — see "Decisions to make" below._
 
 ## Repo structure — decided and built
 - [x] One repo (`bench-notes`), not two — `/pwa` and `/desktop` subfolders
@@ -43,8 +43,22 @@ _Last updated: PWA sign-in confirmed working from the installed home-screen icon
 - [x] Mobile v1 priority — camera + photos first, sync deferred
 - [x] Repo visibility — public repo is fine (entries/photos never touch GitHub —
       they stay in browser storage on each device, only app code is public)
-- [ ] One PWA everywhere vs. keep Electron + PWA separate — deferred on purpose;
-      build the PWA first, decide after living with both for a while
+- [ ] One PWA everywhere vs. keep Electron + PWA separate — **still
+      undecided, but no longer "haven't tried either yet."** This
+      session put a lot of real iteration into the PWA (restore,
+      OneDrive sync, photo compression, repair status, the file split)
+      and zero into desktop, which has sat untouched. The case for
+      PWA-only: desktop would need its own from-scratch OneDrive auth
+      (device-code flow, not a port of the PWA's), the new status
+      field, and someone to work through its whole untested checklist
+      — versus a PWA install on the desktop machine getting everything
+      already-built and already-tested for free. The case for keeping
+      desktop: none really argued yet beyond its original "direct file
+      storage, no browser fragility" rationale, which is weaker now
+      that export/restore/OneDrive sync exist specifically as safety
+      nets for that fragility. User is sitting on this deliberately,
+      not stuck — don't re-argue it from scratch, just pick it back up
+      when they're ready to decide.
 - [x] Sync architecture — **finalized (see PROJECT_NOTES.md for full detail):**
       - Your desktop (Electron): point "Change folder…" at your existing
         OneDrive-synced folder — no new code, works today
@@ -82,8 +96,13 @@ _Last updated: PWA sign-in confirmed working from the installed home-screen icon
 - [ ] Define + document: `bench_notes_data.json` (array of entries, same
       field names on both apps) + a `photos/` folder of real image files,
       named to match filenames referenced in the JSON. Note: the OneDrive
-      App Folder now mirrors this exact shape (`bench-notes-data.json` +
-      `photos/`) for the same reason — see PROJECT_NOTES.md Sync plan
+      App Folder now mirrors this exact *shape* (`bench-notes-data.json` +
+      `photos/`) for the same reason — see PROJECT_NOTES.md Sync plan.
+      **Filenames are not actually identical** — desktop's local file uses
+      an underscore (`bench_notes_data.json`), OneDrive's uses a hyphen
+      (`bench-notes-data.json`). Harmless today since desktop doesn't sync
+      through Graph at all yet, but worth deciding on one convention
+      before desktop OneDrive sync gets built, not after.
 - [ ] Add a `schemaVersion` field for future-proofing
 - [x] PWA must serialize IndexedDB contents to this exact shape when syncing
       (not its own invented format) — verified: sync pushes the entry
@@ -91,7 +110,7 @@ _Last updated: PWA sign-in confirmed working from the installed home-screen icon
       format; this is the piece that prevents the two apps from
       drifting into different file types over time
 
-## OneDrive API sync — PWA built (untested), desktop not started
+## OneDrive API sync — PWA built and tested, desktop not started
 - [x] Register a Microsoft Graph "app" in Azure Portal — done. Name
       "Bench Notes", Client ID `a224822b-7b19-40b9-b504-8596a2add3be`,
       personal-Microsoft-accounts-only, `Files.ReadWrite.AppFolder` +
@@ -232,35 +251,38 @@ strike it if a reason turns up to keep it after all.
   unused — revisit once the desktop app has been used for real for a
   while, rather than removing an untested feature purely on a guess.
 
-## Future idea: QuickBooks invoice export — not started, blocked on one question
-Genuinely worth doing, not a pipedream — but the right approach depends
-entirely on **QuickBooks Online vs. QuickBooks Desktop**, which hasn't
-been confirmed yet (guessed Desktop, not verified). Don't start building
-either path until that's confirmed — they're different enough in kind
-that guessing wrong wastes real effort, not just time.
+## Future idea: QuickBooks invoice export via IIF — not started, path confirmed
+**Confirmed: QuickBooks Pro 2014 (Desktop).** No REST API exists for
+Desktop, so the path is an **IIF file export** from Bench Notes — a
+tab-separated text file QuickBooks Desktop imports natively (File →
+Utilities → Import → IIF Files) that creates a fully-formed invoice
+directly, fields already in place. Not a clipboard paste — an actual
+structured import, which is what makes it work despite the invoice
+having multiple separate fields. An entry's customer info, parts used,
+and fix description would map to the IIF's customer/line-item
+structure.
 
-- **If QuickBooks Online:** real REST API, JSON, OAuth2 — comparable in
-  kind to the OneDrive integration already built in this app (sign in
-  once, get a token, make API calls). Could genuinely create a real
-  invoice directly via API, prefilled from an entry.
-- **If QuickBooks Desktop (the likelier guess):** no REST API at all.
-  The realistic path is an **IIF file export** — a tab-separated text
-  file QuickBooks Desktop can natively import (File → Utilities →
-  Import → IIF Files) that creates a fully-formed invoice directly,
-  fields already in place — not a clipboard paste, an actual import,
-  which is what makes it work despite the invoice having multiple
-  separate fields. An entry's customer info, parts used, and fix
-  description would map to the IIF's customer/line-item structure.
-  Real caveats, not to be undersold: the IIF format is genuinely
-  finicky to build correctly (specific `TRNS`/`SPL` row structure),
-  has limited error checking (can import silently wrong rather than
-  erroring), behavior has shifted across QuickBooks Desktop versions
-  over the years so it'd need testing against the actual installed
-  version, and it's a manual "export then import" step each time, not
-  live/automatic. Standard advice is to back up the QuickBooks company
-  file before each import, since it's not easily undoable.
-- Either way: **not started**, no code written. Revisit once the
-  QuickBooks version is actually confirmed.
+IIF import itself isn't a concern for a version this old — it's been a
+stable, purely local file format since QuickBooks 2000, not an
+Intuit-hosted service that could've been discontinued (unlike payroll/
+bank-feed sync, which Intuit does cut off ~3 years after a version's
+release — irrelevant here since this never touches Intuit's servers).
+
+Real caveats, not to be undersold:
+- The IIF format is genuinely finicky to build correctly (specific
+  `TRNS`/`SPL` row structure) and has limited error checking — it can
+  import silently wrong rather than throwing a clear error.
+- Small IIF behavior differences have shown up release to release over
+  the years (e.g. some optional invoice flags supported in some
+  versions, dropped in later ones) — needs testing against this actual
+  installed Pro 2014 copy specifically, not just "IIF generally works."
+- It's a manual "export from Bench Notes, then import in QuickBooks"
+  step each time, not live/automatic.
+- Standard advice is to back up the QuickBooks company file before
+  each import, since it's not easily undoable.
+
+**Not started** — no code written yet. This is a real, deliberate
+project once picked up, not a quick add-on.
 
 ## Known rough edges (not urgent, just noted)
 - If you attach a photo while editing an entry and then hit Cancel instead

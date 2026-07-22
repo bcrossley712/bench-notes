@@ -463,6 +463,21 @@ are*, so you don't accidentally re-litigate settled decisions.
 
 ## What's realistically next
 
-Check `TODO.md` for the current checklist, but the big remaining piece
-architecturally is the OneDrive sync layer described above — that's
-the next major build once the user is ready, not yet started.
+Check `TODO.md` for the live checklist — it's the source of truth for
+what's tested vs. not, and for open decisions. As of this handoff:
+
+- **OneDrive sync (PWA) is built and tested**, not a future item — sign-in,
+  merge, photos, restore, and disconnect have all been exercised for real
+  by the user. Don't treat sync as unbuilt; that was true early on but
+  isn't anymore.
+- **Desktop is the actual gap.** It hasn't been touched in a long time —
+  no OneDrive sync, no repair-status field, nothing from this session's
+  PWA work has a desktop equivalent yet. See TODO.md's "Decisions to
+  make" for a live, undecided question that affects whether desktop is
+  even worth continuing to build out: possibly consolidating to PWA-only
+  rather than maintaining two apps, given how much more iteration the
+  PWA has had. Don't start desktop OneDrive sync work without checking
+  whether that decision has been made first.
+- **QuickBooks invoice export** (see TODO.md) is a real, deliberate
+  future idea — IIF file export for QuickBooks Pro 2014 — not started,
+  not urgent, don't build it opportunistically without the user asking.
