@@ -1244,9 +1244,9 @@ function matchesFilters(entry, q){
   if(sourceFilter !== 'all' && entry.source !== sourceFilter) return false;
   if(statusFilter !== 'all' && getEntryStatus(entry) !== statusFilter) return false;
   if(q){
-    const hay = [entry.title, entry.engineModel, entry.engineCode, entry.causes, entry.steps, entry.fix,
+    const hay = [entry.title, entry.engineBrand, entry.engineModel, entry.engineCode, entry.causes, entry.steps, entry.fix,
       entry.partsUsed, entry.notes, entry.customerName, entry.customerPhone,
-      entry.equipmentModel, entry.equipmentSerial, entry.equipmentCategory, entry.customerRequest,
+      entry.equipmentBrand, entry.equipmentModel, entry.equipmentSerial, entry.equipmentCategory, entry.customerRequest,
       ...checklistLines(entry.checklist||{})].join(' ').toLowerCase();
     if(!hay.includes(q)) return false;
   }
@@ -1311,8 +1311,8 @@ function render(){
 function openSheet(entry){
   editingId = entry ? entry.id : null;
   sheetIsNewUnsaved = !entry;
-  const e = entry || {title:'',engineModel:'',engineCode:'',source:'dad',causes:'',steps:'',fix:'',notes:'',photos:[],
-    customerName:'',customerPhone:'',equipmentModel:'',equipmentSerial:'',equipmentCategory:'',dateReceived:'',customerRequest:'',
+  const e = entry || {title:'',engineBrand:'',engineModel:'',engineCode:'',source:'dad',causes:'',steps:'',fix:'',notes:'',photos:[],
+    customerName:'',customerPhone:'',equipmentBrand:'',equipmentModel:'',equipmentSerial:'',equipmentCategory:'',dateReceived:'',customerRequest:'',
     partsUsed:'',checklist:{},status:'needs-diagnosis',showAllFields:false};
 
   liveChecklistState = {...(e.checklist||{})};
@@ -1359,10 +1359,14 @@ function openSheet(entry){
 
     <div class="form-section">
       <div class="form-section-title">Equipment</div>
+      <div class="field">
+        <label>Brand</label>
+        <input type="text" id="f_equipmentBrand" placeholder="e.g. TORO" value="${escapeHtml(e.equipmentBrand||'')}" oninput="uppercaseInput(this)">
+      </div>
       <div class="field-row">
         <div class="field">
           <label>Model</label>
-          <input type="text" id="f_equipmentModel" placeholder="e.g. TORO 20370" value="${escapeHtml(e.equipmentModel)}" oninput="uppercaseInput(this)">
+          <input type="text" id="f_equipmentModel" placeholder="e.g. 20370" value="${escapeHtml(e.equipmentModel)}" oninput="uppercaseInput(this)">
         </div>
         <div class="field">
           <label>Serial</label>
@@ -1378,10 +1382,14 @@ function openSheet(entry){
       </div>
       <div class="form-subsection">
         <div class="form-subsection-title">Engine</div>
+        <div class="field">
+          <label>Brand</label>
+          <input type="text" id="f_engineBrand" placeholder="e.g. BRIGGS" value="${escapeHtml(e.engineBrand||'')}" oninput="uppercaseInput(this)">
+        </div>
         <div class="field-row">
           <div class="field">
             <label>Model/Type</label>
-            <input type="text" id="f_engineModel" placeholder="e.g. BRIGGS 500" value="${escapeHtml(e.engineModel)}" oninput="uppercaseInput(this)">
+            <input type="text" id="f_engineModel" placeholder="e.g. 500" value="${escapeHtml(e.engineModel)}" oninput="uppercaseInput(this)">
           </div>
           <div class="field">
             <label>Code</label>
@@ -1630,6 +1638,7 @@ async function saveEntry(){
   const data = {
     title,
     status: document.getElementById('f_status').value,
+    engineBrand: document.getElementById('f_engineBrand').value.trim(),
     engineModel: document.getElementById('f_engineModel').value.trim(),
     engineCode: document.getElementById('f_engineCode').value.trim(),
     source: document.getElementById('f_source').value,
@@ -1641,6 +1650,7 @@ async function saveEntry(){
     photos: [...draftPhotos],
     customerName,
     customerPhone: document.getElementById('f_customerPhone').value.trim(),
+    equipmentBrand: document.getElementById('f_equipmentBrand').value.trim(),
     equipmentModel: document.getElementById('f_equipmentModel').value.trim(),
     equipmentSerial: document.getElementById('f_equipmentSerial').value.trim(),
     equipmentCategory: document.getElementById('f_equipmentCategory').value.trim(),
@@ -1720,11 +1730,13 @@ function openDetail(id){
         entry.customerPhone && (`<span class="mono" style="color:var(--muted);">Phone:</span> ` + escapeHtml(entry.customerPhone)),
         entry.dateReceived && (`<span class="mono" style="color:var(--muted);">Received:</span> ` + escapeHtml(entry.dateReceived))
       ].filter(Boolean).join('<br>')}</p>${entry.customerRequest ? `<p style="margin-top:8px;"><span class="mono" style="color:var(--muted); font-size:11px;">REQUEST</span><br>${escapeHtml(entry.customerRequest)}</p>` : ''}</div>` : ''}
-    ${(entry.equipmentModel || entry.equipmentSerial || entry.equipmentCategory || entry.engineModel || entry.engineCode) ? `<div class="detail-section"><div class="drawer-label">Equipment</div><p>${[
+    ${(entry.equipmentModel || entry.equipmentSerial || entry.equipmentCategory || entry.equipmentBrand || entry.engineBrand || entry.engineModel || entry.engineCode) ? `<div class="detail-section"><div class="drawer-label">Equipment</div><p>${[
         entry.equipmentCategory && (`<span class="mono" style="color:var(--muted);">Category:</span> ` + escapeHtml(entry.equipmentCategory)),
+        entry.equipmentBrand && (`<span class="mono" style="color:var(--muted);">Brand:</span> ` + escapeHtml(entry.equipmentBrand)),
         entry.equipmentModel && (`<span class="mono" style="color:var(--muted);">Model:</span> ` + escapeHtml(entry.equipmentModel)),
         entry.equipmentSerial && (`<span class="mono" style="color:var(--muted);">SN:</span> ` + escapeHtml(entry.equipmentSerial))
-      ].filter(Boolean).join('<br>')}</p>${(entry.engineModel || entry.engineCode) ? `<p style="margin-top:8px;"><span class="mono" style="color:var(--muted); font-size:11px;">ENGINE</span><br>${[
+      ].filter(Boolean).join('<br>')}</p>${(entry.engineBrand || entry.engineModel || entry.engineCode) ? `<p style="margin-top:8px;"><span class="mono" style="color:var(--muted); font-size:11px;">ENGINE</span><br>${[
+        entry.engineBrand && (`<span class="mono" style="color:var(--muted);">Brand:</span> ` + escapeHtml(entry.engineBrand)),
         entry.engineModel && (`<span class="mono" style="color:var(--muted);">Model/Type:</span> ` + escapeHtml(entry.engineModel)),
         entry.engineCode && (`<span class="mono" style="color:var(--muted);">Code:</span> ` + escapeHtml(entry.engineCode))
       ].filter(Boolean).join('<br>')}</p>` : ''}</div>` : ''}
