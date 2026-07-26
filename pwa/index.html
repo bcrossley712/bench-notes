@@ -62,6 +62,11 @@
       <button class="modal-btn cancel" id="compressPhotosBtn" onclick="compressExistingPhotos()">Compress older photos</button>
     </div>
 
+    <div class="settings-section">
+      <div class="settings-section-label">Maintenance</div>
+      <button class="modal-btn cancel" id="cleanupBtn" onclick="cleanUpOldRecords()">Clean up old deleted entries…</button>
+    </div>
+
     <div class="settings-section settings-danger">
       <div class="settings-section-label">Danger Zone</div>
       <button class="modal-btn confirm danger" onclick="startClearLocalData()">Clear local data…</button>
@@ -93,7 +98,7 @@
   <button class="chip" data-source="ai" onclick="setSourceFilter('ai')">AI-assisted</button>
   <button class="chip" data-source="manual" onclick="setSourceFilter('manual')">Service manual</button>
 </div>
-<div class="chip-scroll" id="engineFilters"></div>
+<div class="chip-scroll" id="categoryFilters"></div>
 <div class="stat-line" id="statLine"></div>
 
 <div id="board" class="board"></div>

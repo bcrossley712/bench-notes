@@ -190,7 +190,14 @@ function mergeEntries(localEntries, remoteEntries, baseline){
 
     if(localChanged && remoteChanged && (local.updatedAt !== remote.updatedAt)){
       const [newer, older] = (local.updatedAt >= remote.updatedAt) ? [local, remote] : [remote, local];
-      const duplicateId = older.id + '-conflict-' + Date.now();
+      // Deterministic, not Date.now()-based: this exact conflict (same
+      // older-entry id + the updatedAt it lost with) always produces the
+      // same duplicateId. If the merge ever re-runs on inputs that still
+      // look like this same disagreement (e.g. a delayed/retried sync),
+      // it converges on the same duplicate record instead of minting a
+      // brand-new one — no way to tell "already handled this" apart from
+      // "this is new" otherwise, since nothing reads conflictOf anywhere.
+      const duplicateId = older.id + '-conflict-' + older.updatedAt;
       const duplicate = {
         ...older, id: duplicateId,
         title: (older.title || older.customerName || 'Untitled entry') + ' (⚠ sync conflict copy)',
@@ -505,9 +512,31 @@ async function syncNow(){
     const pushed = await pushRemoteFile({ entries: merged, syncedAt: Date.now() });
     if(!pushed){ syncInProgress = false; return; } // redirected for auth
 
-    await syncPhotos(merged);
-
+    // Entries are now durably merged, saved locally, AND pushed to OneDrive —
+    // the baseline must be saved right now, not after photo sync. Photo sync
+    // failing (a single flaky upload/download) used to leave the OLD baseline
+    // in place despite entries already having moved on, which made the next
+    // sync miscompare "changed since baseline" and could manufacture a false
+    // conflict/duplicate out of an already-resolved entry. Baseline durability
+    // is tied to the entries write, not to photos.
     localStorage.setItem(SYNC_BASELINE_KEY, JSON.stringify(newBaseline));
+
+    try{
+      await syncPhotos(merged);
+    }catch(photoErr){
+      // Don't let a photo hiccup mark the whole sync as failed or roll back
+      // the (already-correct) baseline above — entries are the source of
+      // truth for conflict detection; photos are best-effort and will pick
+      // up any stragglers on the next sync via the normal referenced/local/
+      // remote diff in syncPhotos().
+      console.error('Photo sync failed (entries already synced)', photoErr);
+      localStorage.setItem(SYNC_LAST_KEY, String(Date.now()));
+      await loadEntries();
+      setSyncBar('error', 'Entries synced — photo sync failed, will retry');
+      syncInProgress = false;
+      return;
+    }
+
     localStorage.setItem(SYNC_LAST_KEY, String(Date.now()));
 
     await loadEntries(); // refresh the visible board from IndexedDB
@@ -931,9 +960,74 @@ async function startClearLocalData(){
   }
 }
 
+// ---------- Cleanup: old tombstones & resolved conflict-duplicate copies ----------
+// Deleting an entry only tombstones it (see deleteEntry()) so the deletion
+// can propagate to every device first — nothing ever prunes those records
+// afterward, so they accumulate in IndexedDB, in every export, and in the
+// OneDrive file indefinitely. This is a manual, deliberately conservative
+// cleanup: only removes tombstoned entries and conflict-duplicate copies
+// untouched for 90+ days, on the assumption that's long enough for every
+// device to have synced past them already. Never touches anything visible
+// on the board.
+const CLEANUP_AGE_MS = 90 * 24 * 60 * 60 * 1000;
+
+async function cleanUpOldRecords(){
+  try{
+    const all = await idbGetAll('entries');
+    const cutoff = Date.now() - CLEANUP_AGE_MS;
+    const candidates = all.filter(e => (e.deleted || e.conflictOf) && (e.updatedAt||0) < cutoff);
+
+    if(candidates.length === 0){
+      await showAlert('Nothing to clean up — no deleted entries or conflict copies are more than 90 days old yet.');
+      return;
+    }
+
+    const ok = await showConfirm(
+      `This permanently removes ${candidates.length} old deleted/conflict-copy record(s), ` +
+      `each untouched for 90+ days. They're already invisible on the board — this just stops ` +
+      `them taking up space.\n\n` +
+      (isSignedIn()
+        ? 'This will also remove them from OneDrive so they stop syncing down to other devices.'
+        : "You're not signed in, so this only cleans this device — sign in first if you want it to also clear from OneDrive.") +
+      `\n\nOnly do this if your other device(s) have synced recently — one that hasn't synced ` +
+      `in months could otherwise still need to see these deletions.`,
+      {confirmLabel:'Clean up', cancelLabel:'Cancel', danger:true}
+    );
+    if(!ok) return;
+
+    const candidateIds = new Set(candidates.map(c => c.id));
+    for(const id of candidateIds){
+      await idbDelete('entries', id);
+    }
+
+    if(isSignedIn()){
+      // Deliberately bypasses mergeEntries()/syncNow() here: the normal
+      // merge treats "local doesn't have this id" as "hasn't pulled it
+      // yet" and would just pull these records back down from OneDrive.
+      // Purging permanently means editing the remote file directly to
+      // drop the same ids, not merging.
+      const remotePayload = await fetchRemoteFile();
+      if(remotePayload){
+        const surviving = (remotePayload.entries || []).filter(e => !candidateIds.has(e.id));
+        await pushRemoteFile({ entries: surviving, syncedAt: Date.now() });
+        const baseline = JSON.parse(localStorage.getItem(SYNC_BASELINE_KEY) || '{}');
+        for(const id of candidateIds) delete baseline[id];
+        localStorage.setItem(SYNC_BASELINE_KEY, JSON.stringify(baseline));
+      }
+    }
+
+    await loadEntries();
+    closeSettings();
+    await showAlert(`Removed ${candidates.length} old record(s).`);
+  }catch(err){
+    console.error('Cleanup failed', err);
+    await showAlert('Cleanup failed: ' + (err && err.message ? err.message : err));
+  }
+}
+
 // ---------- App state ----------
 let entries = [];
-let engineFilter = 'all';
+let categoryFilter = 'all';
 let sourceFilter = 'all';
 let statusFilter = 'all';
 let editingId = null;
@@ -943,6 +1037,7 @@ let photoUrlCache = {};       // photo id -> object URL
 const SOURCE_LABELS = {dad:'From Dad', experience:'My experience', ai:'AI-assisted', manual:'Service manual'};
 const STATUS_LABELS = {
   'needs-diagnosis': 'Needs Diagnosis',
+  'waiting-quote': 'Waiting on Quote',
   'waiting-parts': 'Waiting on Parts',
   'in-progress': 'In Progress',
   'complete': 'Complete'
@@ -958,11 +1053,46 @@ function getEntryStatus(entry){
 
 const CHECKLIST_ITEMS = [
   ['sparkTest','Spark Test'], ['sparkPlug','Spark Plug'], ['compressionTest','Compression Test'],
-  ['fuelTank','Fuel Tank'], ['fuelFilter','Fuel Filter'], ['fuelAdditive','Fuel Additive'],
-  ['airFilter','Air Filter'], ['oilChange','Oil Change'], ['oilFilter','Oil Filter'],
+  ['fuelTank','Fuel Tank'], ['fuelFilter','Fuel Filter'],
+  ['airFilter','Air Filter'], ['oilChange','Oil'], ['oilFilter','Oil Filter'],
   ['lubeFrontEnd','Lube Front End'], ['tirePressure','Tire Pressure'], ['cleanDeck','Clean Deck'],
   ['bladeSharpening','Blade Sharpening']
 ];
+
+// Every category gets this base set regardless of what else it adds.
+const CHECKLIST_BASE = ['sparkTest','sparkPlug','compressionTest','fuelTank','airFilter','oilChange'];
+
+// Only categories in this map narrow the checklist down from "everything."
+// A blank category, or anything typed in that isn't one of these exact
+// names, deliberately falls back to showing every field — narrowing only
+// ever happens for a category we actually recognize, never by default.
+const CATEGORY_CHECKLIST_EXTRAS = {
+  'walk-behind mower': ['cleanDeck','bladeSharpening'],
+  'riding mower / zero-turn': ['fuelFilter','oilFilter','lubeFrontEnd','tirePressure','cleanDeck','bladeSharpening'],
+  'chainsaw': ['bladeSharpening'],
+  'string trimmer': [],
+  'blower': [],
+  'hedge trimmer': [],
+  'tiller': [],
+  'generator': [],
+  'pressure washer': []
+};
+const EQUIPMENT_CATEGORY_OPTIONS = [
+  'Walk-Behind Mower', 'Riding Mower / Zero-Turn', 'Chainsaw', 'String Trimmer',
+  'Blower', 'Hedge Trimmer', 'Tiller', 'Generator', 'Pressure Washer'
+];
+
+// Returns which checklist keys should be rendered right now. Never affects
+// what's actually saved (see liveChecklistState) — a field hidden here can
+// still hold a value underneath and reappears if category changes back or
+// "Show all fields" is checked.
+function getVisibleChecklistKeys(showAll, category){
+  if(showAll) return CHECKLIST_ITEMS.map(([k])=>k);
+  const cat = (category||'').trim().toLowerCase();
+  const extras = CATEGORY_CHECKLIST_EXTRAS[cat];
+  if(cat === '' || extras === undefined) return CHECKLIST_ITEMS.map(([k])=>k); // blank/unrecognized -> show everything
+  return [...CHECKLIST_BASE, ...extras];
+}
 
 // ---------- View history (back button closes project/photo, not the app) ----------
 let sheetIsNewUnsaved = false;
@@ -1091,32 +1221,32 @@ function setStatusFilter(s){
   render();
 }
 
-function renderEngineFilters(){
-  const types = Array.from(new Set(entries.map(e=>e.engineModel).filter(Boolean))).sort();
-  const wrap = document.getElementById('engineFilters');
+function renderCategoryFilters(){
+  const types = Array.from(new Set(entries.map(e=>e.equipmentCategory).filter(Boolean))).sort();
+  const wrap = document.getElementById('categoryFilters');
   wrap.innerHTML = '';
   const allChip = document.createElement('button');
-  allChip.className = 'chip' + (engineFilter==='all' ? ' active':'');
-  allChip.textContent = 'All engines';
-  allChip.onclick = ()=>{ engineFilter='all'; renderEngineFilters(); render(); };
+  allChip.className = 'chip' + (categoryFilter==='all' ? ' active':'');
+  allChip.textContent = 'All categories';
+  allChip.onclick = ()=>{ categoryFilter='all'; renderCategoryFilters(); render(); };
   wrap.appendChild(allChip);
   types.forEach(t=>{
     const chip = document.createElement('button');
-    chip.className = 'chip' + (engineFilter===t ? ' active':'');
+    chip.className = 'chip' + (categoryFilter===t ? ' active':'');
     chip.textContent = t;
-    chip.onclick = ()=>{ engineFilter=t; renderEngineFilters(); render(); };
+    chip.onclick = ()=>{ categoryFilter=t; renderCategoryFilters(); render(); };
     wrap.appendChild(chip);
   });
 }
 
 function matchesFilters(entry, q){
-  if(engineFilter !== 'all' && entry.engineModel !== engineFilter) return false;
+  if(categoryFilter !== 'all' && entry.equipmentCategory !== categoryFilter) return false;
   if(sourceFilter !== 'all' && entry.source !== sourceFilter) return false;
   if(statusFilter !== 'all' && getEntryStatus(entry) !== statusFilter) return false;
   if(q){
     const hay = [entry.title, entry.engineModel, entry.engineCode, entry.causes, entry.steps, entry.fix,
       entry.partsUsed, entry.notes, entry.customerName, entry.customerPhone,
-      entry.equipmentModel, entry.equipmentSerial, entry.customerRequest,
+      entry.equipmentModel, entry.equipmentSerial, entry.equipmentCategory, entry.customerRequest,
       ...checklistLines(entry.checklist||{})].join(' ').toLowerCase();
     if(!hay.includes(q)) return false;
   }
@@ -1125,7 +1255,7 @@ function matchesFilters(entry, q){
 
 // ---------- Board rendering ----------
 function render(){
-  renderEngineFilters();
+  renderCategoryFilters();
   const q = document.getElementById('searchInput').value.trim().toLowerCase();
   const filtered = entries.filter(e=>matchesFilters(e,q)).sort((a,b)=>b.createdAt - a.createdAt);
 
@@ -1161,7 +1291,7 @@ function render(){
       <div class="tag-num">#${num}</div>
       <div class="source-mark source-${entry.source}">${SOURCE_LABELS[entry.source]||''}</div>
       <div class="status-badge status-${status}">${STATUS_LABELS[status]}</div>
-      ${entry.engineModel ? `<div class="engine-badge">${escapeHtml(entry.engineModel)}</div>` : ''}
+      ${entry.equipmentCategory ? `<div class="category-badge">${escapeHtml(entry.equipmentCategory)}</div>` : ''}
       <h3>${escapeHtml(headline)}</h3>
       ${entry.title && entry.customerName ? `<div class="mono" style="font-size:11.5px; color:var(--ink-soft); margin-bottom:4px;">👤 ${escapeHtml(entry.customerName)}</div>` : ''}
       <div class="preview">${escapeHtml(entry.fix || entry.causes || entry.customerRequest || '')}</div>
@@ -1182,8 +1312,10 @@ function openSheet(entry){
   editingId = entry ? entry.id : null;
   sheetIsNewUnsaved = !entry;
   const e = entry || {title:'',engineModel:'',engineCode:'',source:'dad',causes:'',steps:'',fix:'',notes:'',photos:[],
-    customerName:'',customerPhone:'',equipmentModel:'',equipmentSerial:'',dateReceived:'',customerRequest:'',
-    partsUsed:'',checklist:{},status:'needs-diagnosis'};
+    customerName:'',customerPhone:'',equipmentModel:'',equipmentSerial:'',equipmentCategory:'',dateReceived:'',customerRequest:'',
+    partsUsed:'',checklist:{},status:'needs-diagnosis',showAllFields:false};
+
+  liveChecklistState = {...(e.checklist||{})};
 
   draftPhotos = entry && entry.photos ? [...entry.photos] : [];
 
@@ -1237,6 +1369,13 @@ function openSheet(entry){
           <input type="text" id="f_equipmentSerial" placeholder="e.g. 12345" value="${escapeHtml(e.equipmentSerial)}" oninput="uppercaseInput(this)">
         </div>
       </div>
+      <div class="field">
+        <label>Category</label>
+        <input type="text" id="f_equipmentCategory" list="categoryOptions" placeholder="e.g. Walk-Behind Mower — pick or type your own" value="${escapeHtml(e.equipmentCategory||'')}" oninput="uppercaseInput(this); onCategoryOrShowAllChange();">
+        <datalist id="categoryOptions">
+          ${EQUIPMENT_CATEGORY_OPTIONS.map(c=>`<option value="${escapeHtml(c)}">`).join('')}
+        </datalist>
+      </div>
       <div class="form-subsection">
         <div class="form-subsection-title">Engine</div>
         <div class="field-row">
@@ -1268,19 +1407,12 @@ function openSheet(entry){
 
     <div class="field">
       <label>Service Checklist</label>
-      <div class="checklist-grid" id="checklistGrid">
-        ${CHECKLIST_ITEMS.map(([key,label])=>{
-          const item = (e.checklist && e.checklist[key]) || {checked:false, note:''};
-          return `
-          <div class="checklist-row">
-            <label class="checklist-check">
-              <input type="checkbox" id="cl_${key}_checked" ${item.checked?'checked':''} onchange="onChecklistChange()">
-              <span>${label}</span>
-            </label>
-            <input type="text" id="cl_${key}_note" class="checklist-note" placeholder="note (optional)" value="${escapeHtml(item.note||'')}" oninput="onChecklistChange()">
-          </div>`;
-        }).join('')}
-      </div>
+      <label class="checklist-check" style="margin-bottom:10px;">
+        <input type="checkbox" id="f_showAllFields" ${e.showAllFields?'checked':''} onchange="onCategoryOrShowAllChange()">
+        <span>Show all fields</span>
+      </label>
+      <div id="checklistHiddenHint" class="mono" style="color:var(--muted); font-size:11px; margin-bottom:8px; display:none;"></div>
+      <div class="checklist-grid" id="checklistGrid"></div>
     </div>
 
     <div class="field"><label>Likely Causes</label><textarea id="f_causes">${escapeHtml(e.causes)}</textarea></div>
@@ -1290,7 +1422,7 @@ function openSheet(entry){
       <div id="checklistFixPreview" class="checklist-fix-preview"></div>
       <textarea id="f_fix" placeholder="Notes go here — checked items above are added automatically">${escapeHtml(e.fix)}</textarea>
     </div>
-    <div class="field"><label>Parts Used</label><textarea id="f_partsUsed" placeholder="e.g. Air filter, spark plug NGK BPR6ES">${escapeHtml(e.partsUsed)}</textarea></div>
+    <div class="field"><label>Parts</label><textarea id="f_partsUsed" placeholder="e.g. AIR FILTER, SPARK PLUG NGK BPR6ES — needed, quoted, or used" oninput="uppercaseInput(this)">${escapeHtml(e.partsUsed)}</textarea></div>
     <div class="field"><label>Notes</label><textarea id="f_notes">${escapeHtml(e.notes)}</textarea></div>
 
     <div class="field">
@@ -1305,6 +1437,7 @@ function openSheet(entry){
   pushView('sheet');
   document.getElementById('sheetOverlay').classList.add('open');
   renderDraftPhotoGrid();
+  renderChecklistGrid();
   renderChecklistPreview();
 }
 
@@ -1312,14 +1445,66 @@ function closeSheet(){
   history.back();
 }
 
+// Holds every checklist key's {checked, note} for the entry currently being
+// edited — including keys not currently rendered because the category (or
+// "Show all fields" being off) hides them. This is the actual save-time
+// source of truth, NOT the DOM: a field hidden by category still keeps
+// whatever value it had, and reappears untouched if you switch the
+// category back or check "Show all fields."
+let liveChecklistState = {};
+
+function currentCategoryValue(){
+  const inp = document.getElementById('f_equipmentCategory');
+  return inp ? inp.value : '';
+}
+function currentShowAllValue(){
+  const cb = document.getElementById('f_showAllFields');
+  return cb ? cb.checked : false;
+}
+
+function renderChecklistGrid(){
+  const grid = document.getElementById('checklistGrid');
+  if(!grid) return;
+  const showAll = currentShowAllValue();
+  const visibleKeys = getVisibleChecklistKeys(showAll, currentCategoryValue());
+  grid.innerHTML = CHECKLIST_ITEMS.filter(([key])=>visibleKeys.includes(key)).map(([key,label])=>{
+    const item = liveChecklistState[key] || {checked:false, note:''};
+    return `
+    <div class="checklist-row">
+      <label class="checklist-check">
+        <input type="checkbox" id="cl_${key}_checked" ${item.checked?'checked':''} onchange="onChecklistChange('${key}')">
+        <span>${label}</span>
+      </label>
+      <input type="text" id="cl_${key}_note" class="checklist-note" placeholder="note (optional)" value="${escapeHtml(item.note||'')}" oninput="onChecklistChange('${key}')">
+    </div>`;
+  }).join('');
+
+  const hiddenCount = CHECKLIST_ITEMS.length - visibleKeys.length;
+  const hint = document.getElementById('checklistHiddenHint');
+  if(hint){
+    hint.style.display = hiddenCount > 0 ? 'block' : 'none';
+    hint.textContent = hiddenCount > 0
+      ? `${hiddenCount} field${hiddenCount===1?'':'s'} hidden for this category — nothing already entered is lost, check "Show all fields" to see them.`
+      : '';
+  }
+}
+
+// Called whenever category text or the show-all-fields checkbox changes.
+// Re-renders which rows are visible without touching liveChecklistState,
+// so nothing entered in a field that's about to be hidden gets lost.
+function onCategoryOrShowAllChange(){
+  renderChecklistGrid();
+}
+
+function onChecklistChange(key){
+  const cb = document.getElementById('cl_'+key+'_checked');
+  const note = document.getElementById('cl_'+key+'_note');
+  liveChecklistState[key] = { checked: cb ? cb.checked : false, note: note ? note.value.trim() : '' };
+  renderChecklistPreview();
+}
+
 function getChecklistState(){
-  const state = {};
-  CHECKLIST_ITEMS.forEach(([key])=>{
-    const cb = document.getElementById('cl_'+key+'_checked');
-    const note = document.getElementById('cl_'+key+'_note');
-    state[key] = { checked: cb ? cb.checked : false, note: note ? note.value.trim() : '' };
-  });
-  return state;
+  return liveChecklistState;
 }
 
 // Builds the "Label - note" lines for currently-checked items. Single source of
@@ -1339,10 +1524,6 @@ function renderChecklistPreview(){
     ? lines.map(l=>`<div class="checklist-fix-line">${escapeHtml(l)}</div>`).join('')
     : '';
   el.style.display = lines.length ? 'block' : 'none';
-}
-
-function onChecklistChange(){
-  renderChecklistPreview();
 }
 
 function triggerPhotoInput(){
@@ -1395,14 +1576,23 @@ async function compressImage(file, maxDimension, quality){
 
 async function handlePhotoFiles(event){
   const files = Array.from(event.target.files || []);
+  let failed = 0;
   for(const file of files){
     const id = photoId();
-    const blob = await compressImage(file);
-    await idbPut('photos', {id, blob, mimeType: 'image/jpeg', filename: id + '.jpg'});
-    draftPhotos.push(id);
+    try{
+      const blob = await compressImage(file);
+      await idbPut('photos', {id, blob, mimeType: 'image/jpeg', filename: id + '.jpg'});
+      draftPhotos.push(id);
+    }catch(err){
+      console.error('Photo save failed', err);
+      failed++;
+    }
   }
   event.target.value = '';
   renderDraftPhotoGrid();
+  if(failed > 0){
+    await showAlert(`${failed} photo(s) couldn't be saved — your device may be low on storage. Any that did save are fine; free up space for the rest.`);
+  }
 }
 document.getElementById('hiddenPhotoInput').addEventListener('change', handlePhotoFiles);
 document.getElementById('hiddenLibraryInput').addEventListener('change', handlePhotoFiles);
@@ -1453,6 +1643,8 @@ async function saveEntry(){
     customerPhone: document.getElementById('f_customerPhone').value.trim(),
     equipmentModel: document.getElementById('f_equipmentModel').value.trim(),
     equipmentSerial: document.getElementById('f_equipmentSerial').value.trim(),
+    equipmentCategory: document.getElementById('f_equipmentCategory').value.trim(),
+    showAllFields: document.getElementById('f_showAllFields').checked,
     dateReceived: document.getElementById('f_dateReceived').value,
     customerRequest: document.getElementById('f_customerRequest').value.trim(),
     checklist: getChecklistState()
@@ -1479,7 +1671,13 @@ async function saveEntry(){
       dateAdded: new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})
     };
   }
-  await saveEntryToDB(entry);
+  try{
+    await saveEntryToDB(entry);
+  }catch(err){
+    console.error('Save failed', err);
+    await showAlert("Couldn't save this entry — your device may be low on storage. Nothing else was affected, but this save didn't go through. Free up some space and try again.");
+    return;
+  }
   await loadEntries();
   sheetIsNewUnsaved = false;
   closeSheet();
@@ -1522,7 +1720,8 @@ function openDetail(id){
         entry.customerPhone && (`<span class="mono" style="color:var(--muted);">Phone:</span> ` + escapeHtml(entry.customerPhone)),
         entry.dateReceived && (`<span class="mono" style="color:var(--muted);">Received:</span> ` + escapeHtml(entry.dateReceived))
       ].filter(Boolean).join('<br>')}</p>${entry.customerRequest ? `<p style="margin-top:8px;"><span class="mono" style="color:var(--muted); font-size:11px;">REQUEST</span><br>${escapeHtml(entry.customerRequest)}</p>` : ''}</div>` : ''}
-    ${(entry.equipmentModel || entry.equipmentSerial || entry.engineModel || entry.engineCode) ? `<div class="detail-section"><div class="drawer-label">Equipment</div><p>${[
+    ${(entry.equipmentModel || entry.equipmentSerial || entry.equipmentCategory || entry.engineModel || entry.engineCode) ? `<div class="detail-section"><div class="drawer-label">Equipment</div><p>${[
+        entry.equipmentCategory && (`<span class="mono" style="color:var(--muted);">Category:</span> ` + escapeHtml(entry.equipmentCategory)),
         entry.equipmentModel && (`<span class="mono" style="color:var(--muted);">Model:</span> ` + escapeHtml(entry.equipmentModel)),
         entry.equipmentSerial && (`<span class="mono" style="color:var(--muted);">SN:</span> ` + escapeHtml(entry.equipmentSerial))
       ].filter(Boolean).join('<br>')}</p>${(entry.engineModel || entry.engineCode) ? `<p style="margin-top:8px;"><span class="mono" style="color:var(--muted); font-size:11px;">ENGINE</span><br>${[
@@ -1536,7 +1735,7 @@ function openDetail(id){
         const combined = [clLines.join('\n'), entry.fix].filter(Boolean).join('\n\n');
         return `<div class="detail-section"><div class="drawer-label">The Fix</div><p>${escapeHtml(combined)}</p></div>`;
       })() : ''}
-    ${entry.partsUsed ? `<div class="detail-section"><div class="drawer-label">Parts Used</div><p>${escapeHtml(entry.partsUsed)}</p></div>` : ''}
+    ${entry.partsUsed ? `<div class="detail-section"><div class="drawer-label">Parts</div><p>${escapeHtml(entry.partsUsed)}</p></div>` : ''}
     ${entry.notes ? `<div class="detail-section"><div class="drawer-label">Notes</div><p>${escapeHtml(entry.notes)}</p></div>` : ''}
     ${hasPhotos ? `<div class="detail-section"><div class="drawer-label">Photos</div><div class="photo-field-grid" id="detailPhotoGrid"></div></div>` : ''}
     <div class="detail-actions">
@@ -1569,7 +1768,19 @@ async function deleteEntry(id){
   const entry = entries.find(e=>e.id===id);
   if(entry){
     if(entry.photos){
+      // Photo IDs aren't reserved to one entry — a conflict-duplicate entry
+      // (see mergeEntries()) is a copy of an OLDER version of another entry
+      // and very often still lists the same photo IDs as the surviving
+      // version. Deleting this entry's blobs without checking would
+      // silently pull photos out from under whichever other entry still
+      // needs them. Build the "still needed elsewhere" set first.
+      const stillReferenced = new Set();
+      for(const other of entries){
+        if(other.id === id) continue;
+        (other.photos || []).forEach(pid => stillReferenced.add(pid));
+      }
       for(const pid of entry.photos){
+        if(stillReferenced.has(pid)) continue; // another entry still needs this blob
         await idbDelete('photos', pid);
         delete photoUrlCache[pid];
       }
@@ -1731,6 +1942,15 @@ function applyUpdate(){
   if(waitingWorker){
     waitingWorker.postMessage({type:'SKIP_WAITING'});
   }
+}
+
+// Ask the browser not to auto-evict this app's data under storage pressure.
+// Best-effort only — some browsers grant it silently, some prompt, some
+// (notably Safari in some configurations) never grant it at all — so this
+// is a mitigation, not a guarantee, and failures here are deliberately not
+// surfaced to the user since there's no useful action for them to take.
+if('storage' in navigator && 'persist' in navigator.storage){
+  navigator.storage.persist().catch(()=>{});
 }
 
 history.replaceState({view:'board'}, '');
