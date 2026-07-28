@@ -200,7 +200,12 @@ function mergeEntries(localEntries, remoteEntries, baseline){
       const duplicateId = older.id + '-conflict-' + older.updatedAt;
       const duplicate = {
         ...older, id: duplicateId,
-        title: (older.title || older.customerName || 'Untitled entry') + ' (⚠ sync conflict copy)',
+        // Card headline now prefers primaryComplaint over title, so the
+        // marker has to land on whichever field actually drives it —
+        // otherwise a conflict copy could look identical to the entry it
+        // duplicates from on the board.
+        primaryComplaint: (older.primaryComplaint || older.title || older.customerName || 'Untitled entry') + ' (⚠ sync conflict copy)',
+        title: older.title || '',
         conflictOf: newer.id, updatedAt: older.updatedAt
       };
       merged.push(newer, duplicate);
@@ -1195,6 +1200,15 @@ function uppercaseInput(input){
   input.setSelectionRange(pos, pos);
 }
 
+// Collapses/expands a form-section-title's sibling .collapsible-body.
+// Sections always start expanded when the sheet opens (no persisted
+// state) — this only toggles for the current open/edit session.
+function toggleFormSection(headerEl){
+  headerEl.classList.toggle('is-collapsed');
+  const body = headerEl.nextElementSibling;
+  if(body) body.classList.toggle('is-collapsed');
+}
+
 async function getPhotoUrl(id){
   if(photoUrlCache[id]) return photoUrlCache[id];
   const record = await idbGet('photos', id);
@@ -1246,7 +1260,7 @@ function matchesFilters(entry, q){
   if(q){
     const hay = [entry.title, entry.engineBrand, entry.engineModel, entry.engineCode, entry.causes, entry.steps, entry.fix,
       entry.partsUsed, entry.notes, entry.customerName, entry.customerPhone,
-      entry.equipmentBrand, entry.equipmentModel, entry.equipmentSerial, entry.equipmentCategory, entry.customerRequest,
+      entry.equipmentBrand, entry.equipmentModel, entry.equipmentSerial, entry.equipmentCategory, entry.primaryComplaint, entry.customerRequest,
       ...checklistLines(entry.checklist||{})].join(' ').toLowerCase();
     if(!hay.includes(q)) return false;
   }
@@ -1282,7 +1296,7 @@ function render(){
     const num = String(entry.orderNumber || 0).padStart(3,'0');
     const hasPhotos = entry.photos && entry.photos.length > 0;
     const status = getEntryStatus(entry);
-    const headline = entry.title || entry.customerName || 'Untitled entry';
+    const headline = entry.primaryComplaint || entry.title || entry.customerName || 'Untitled entry';
     const card = document.createElement('div');
     card.className = 'tag-card';
     card.onclick = ()=>openDetail(entry.id);
@@ -1294,7 +1308,7 @@ function render(){
       ${entry.equipmentCategory ? `<div class="category-badge">${escapeHtml(entry.equipmentCategory)}</div>` : ''}
       <h3>${escapeHtml(headline)}</h3>
       ${entry.title && entry.customerName ? `<div class="mono" style="font-size:11.5px; color:var(--ink-soft); margin-bottom:4px;">👤 ${escapeHtml(entry.customerName)}</div>` : ''}
-      <div class="preview">${escapeHtml(entry.fix || entry.causes || '')}</div>
+      <div class="preview">${escapeHtml(entry.title || entry.fix || entry.causes || '')}</div>
       ${hasPhotos ? `<div class="card-photo-thumb" data-photo-id="${entry.photos[0]}"><span class="mono photo-count">${entry.photos.length} photo${entry.photos.length>1?'s':''}</span></div>` : ''}
       <div class="tag-footer"><span>${entry.dateAdded||''}</span><span>OPEN →</span></div>
     `;
@@ -1312,7 +1326,7 @@ function openSheet(entry){
   editingId = entry ? entry.id : null;
   sheetIsNewUnsaved = !entry;
   const e = entry || {title:'',engineBrand:'',engineModel:'',engineCode:'',source:'dad',causes:'',steps:'',fix:'',notes:'',photos:[],
-    customerName:'',customerPhone:'',equipmentBrand:'',equipmentModel:'',equipmentSerial:'',equipmentCategory:'',dateReceived:'',customerRequest:'',
+    customerName:'',customerPhone:'',equipmentBrand:'',equipmentModel:'',equipmentSerial:'',equipmentCategory:'',dateReceived:'',primaryComplaint:'',customerRequest:'',
     partsUsed:'',checklist:{},status:'needs-diagnosis',showAllFields:false};
 
   liveChecklistState = {...(e.checklist||{})};
@@ -1347,7 +1361,10 @@ function openSheet(entry){
     </div>
 
     <div class="form-section">
-      <div class="form-section-title">Customer</div>
+      <div class="form-section-title collapsible" onclick="toggleFormSection(this)">
+        <span>Customer</span><span class="chevron">▾</span>
+      </div>
+      <div class="collapsible-body">
       <div class="field-row">
         <div class="field">
           <label>Customer Name</label>
@@ -1363,13 +1380,21 @@ function openSheet(entry){
         <input type="date" id="f_dateReceived" value="${escapeHtml(e.dateReceived)}">
       </div>
       <div class="field">
+        <label>Primary Complaint</label>
+        <input type="text" id="f_primaryComplaint" placeholder="Short summary for the card title, e.g. &quot;won't start&quot;" value="${escapeHtml(e.primaryComplaint||'')}">
+      </div>
+      <div class="field">
         <label>Request</label>
         <textarea id="f_customerRequest" placeholder="What the customer said, in their words">${escapeHtml(e.customerRequest)}</textarea>
+      </div>
       </div>
     </div>
 
     <div class="form-section">
-      <div class="form-section-title">Equipment</div>
+      <div class="form-section-title collapsible" onclick="toggleFormSection(this)">
+        <span>Equipment</span><span class="chevron">▾</span>
+      </div>
+      <div class="collapsible-body">
       <div class="field">
         <label>Brand</label>
         <input type="text" id="f_equipmentBrand" placeholder="e.g. TORO" value="${escapeHtml(e.equipmentBrand||'')}" oninput="uppercaseInput(this)">
@@ -1408,6 +1433,7 @@ function openSheet(entry){
           </div>
         </div>
       </div>
+      </div>
     </div>
 
     <div class="field">
@@ -1425,13 +1451,17 @@ function openSheet(entry){
       <div class="field"><label>Diagnostic Steps</label><textarea id="f_steps">${escapeHtml(e.steps)}</textarea></div>
 
       <div class="field">
-        <label>Service Checklist</label>
+        <div class="form-section-title collapsible" style="margin-bottom:10px;" onclick="toggleFormSection(this)">
+          <span>Service Checklist</span><span class="chevron">▾</span>
+        </div>
+        <div class="collapsible-body">
         <label class="checklist-check" style="margin-bottom:10px;">
           <input type="checkbox" id="f_showAllFields" ${e.showAllFields?'checked':''} onchange="onCategoryOrShowAllChange()">
           <span>Show all fields</span>
         </label>
         <div id="checklistHiddenHint" class="mono" style="color:var(--muted); font-size:11px; margin-bottom:8px; display:none;"></div>
         <div class="checklist-grid" id="checklistGrid"></div>
+        </div>
       </div>
 
       <div class="field">
@@ -1664,6 +1694,7 @@ async function saveEntry(){
     equipmentCategory: document.getElementById('f_equipmentCategory').value.trim(),
     showAllFields: document.getElementById('f_showAllFields').checked,
     dateReceived: document.getElementById('f_dateReceived').value,
+    primaryComplaint: document.getElementById('f_primaryComplaint').value.trim(),
     customerRequest: document.getElementById('f_customerRequest').value.trim(),
     checklist: getChecklistState()
   };
@@ -1725,7 +1756,7 @@ function openDetail(id){
   document.getElementById('sheetContent').innerHTML = `
     <div class="sheet-topbar">
       <button class="sheet-btn muted" onclick="closeSheet()">Close</button>
-      <h2 style="font-size:16px;">${escapeHtml(entry.title || entry.customerName || 'Untitled entry')}</h2>
+      <h2 style="font-size:16px;">${escapeHtml(entry.primaryComplaint || entry.title || entry.customerName || 'Untitled entry')}</h2>
       <span style="width:60px;"></span>
     </div>
     <div class="stat-line" style="padding-left:0;">${SOURCE_LABELS[entry.source]||''} · ${entry.dateAdded||''}</div>
@@ -1733,11 +1764,11 @@ function openDetail(id){
     ${entry.completedAt ? `<button class="icon-btn" style="margin:2px 0 0;" onclick="editCompletedDate('${entry.id}')" aria-label="Edit completed date/time" title="Edit completed date/time">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
     </button>` : ''}
-    ${(entry.customerName || entry.customerPhone || entry.dateReceived || entry.customerRequest) ? `<div class="detail-section"><div class="drawer-label">Customer</div><p>${[
+    ${(entry.customerName || entry.customerPhone || entry.dateReceived || entry.primaryComplaint || entry.customerRequest) ? `<div class="detail-section"><div class="drawer-label">Customer</div><p>${[
         entry.customerName && escapeHtml(entry.customerName),
         entry.customerPhone && (`<span class="mono" style="color:var(--muted);">Phone:</span> ` + escapeHtml(entry.customerPhone)),
         entry.dateReceived && (`<span class="mono" style="color:var(--muted);">Received:</span> ` + escapeHtml(entry.dateReceived))
-      ].filter(Boolean).join('<br>')}</p>${entry.customerRequest ? `<p style="margin-top:8px;"><span class="mono" style="color:var(--muted); font-size:11px;">REQUEST</span><br>${escapeHtml(entry.customerRequest)}</p>` : ''}</div>` : ''}
+      ].filter(Boolean).join('<br>')}</p>${entry.primaryComplaint ? `<p style="margin-top:8px;"><span class="mono" style="color:var(--muted); font-size:11px;">PRIMARY COMPLAINT</span><br>${escapeHtml(entry.primaryComplaint)}</p>` : ''}${entry.customerRequest ? `<p style="margin-top:8px;"><span class="mono" style="color:var(--muted); font-size:11px;">REQUEST</span><br>${escapeHtml(entry.customerRequest)}</p>` : ''}</div>` : ''}
     ${(entry.equipmentModel || entry.equipmentSerial || entry.equipmentCategory || entry.equipmentBrand || entry.engineBrand || entry.engineModel || entry.engineCode) ? `<div class="detail-section"><div class="drawer-label">Equipment</div><p>${[
         entry.equipmentCategory && (`<span class="mono" style="color:var(--muted);">Category:</span> ` + escapeHtml(entry.equipmentCategory)),
         entry.equipmentBrand && (`<span class="mono" style="color:var(--muted);">Brand:</span> ` + escapeHtml(entry.equipmentBrand)),

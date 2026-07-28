@@ -170,6 +170,11 @@
   .field-row{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
   .form-section{border:1px solid var(--rule); border-radius:8px; padding:14px; margin-bottom:16px; background:var(--panel-raised);}
   .form-section-title{font-family:'Oswald',sans-serif; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; font-size:13px; color:var(--orange); margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid var(--rule);}
+  .form-section-title.collapsible{display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none;}
+  .form-section-title.collapsible .chevron{transition:transform 0.15s ease; font-size:11px;}
+  .form-section-title.collapsible.is-collapsed .chevron{transform:rotate(-90deg);}
+  .collapsible-body{overflow:hidden;}
+  .collapsible-body.is-collapsed{display:none;}
   .form-subsection{margin-top:14px; padding-top:14px; border-top:1px dashed var(--rule);}
   .form-subsection-title{font-family:'Oswald',sans-serif; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; font-size:11px; color:var(--brass); margin-bottom:10px;}
 
