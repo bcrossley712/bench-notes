@@ -1380,7 +1380,7 @@ function openSheet(entry){
         <input type="date" id="f_dateReceived" value="${escapeHtml(e.dateReceived)}">
       </div>
       <div class="field">
-        <label>Primary Complaint</label>
+        <label>Primary Complaint <span class="mono" style="color:var(--muted); text-transform:none; letter-spacing:0; font-size:11px;">(this becomes the entry's title on the board)</span></label>
         <input type="text" id="f_primaryComplaint" placeholder="Short summary for the card title, e.g. &quot;won't start&quot;" value="${escapeHtml(e.primaryComplaint||'')}">
       </div>
       <div class="field">
@@ -1465,8 +1465,8 @@ function openSheet(entry){
       </div>
 
       <div class="field">
-        <label>The Cause <span class="mono" style="color:var(--muted); text-transform:none; letter-spacing:0; font-size:11px;">(this becomes the entry's title on the board)</span></label>
-        <input type="text" id="f_title" placeholder="The primary cause of the primary complaint" value="${escapeHtml(e.title)}">
+        <label>The Cause</label>
+        <input type="text" id="f_title" placeholder="Cause of primary complaint" value="${escapeHtml(e.title)}">
       </div>
 
       <div class="field"><label>Parts</label><textarea id="f_partsUsed" placeholder="e.g. AIR FILTER, SPARK PLUG NGK BPR6ES — needed, quoted, or used" oninput="uppercaseInput(this)">${escapeHtml(e.partsUsed)}</textarea></div>
