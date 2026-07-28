@@ -1294,7 +1294,7 @@ function render(){
       ${entry.equipmentCategory ? `<div class="category-badge">${escapeHtml(entry.equipmentCategory)}</div>` : ''}
       <h3>${escapeHtml(headline)}</h3>
       ${entry.title && entry.customerName ? `<div class="mono" style="font-size:11.5px; color:var(--ink-soft); margin-bottom:4px;">👤 ${escapeHtml(entry.customerName)}</div>` : ''}
-      <div class="preview">${escapeHtml(entry.fix || entry.causes || entry.customerRequest || '')}</div>
+      <div class="preview">${escapeHtml(entry.fix || entry.causes || '')}</div>
       ${hasPhotos ? `<div class="card-photo-thumb" data-photo-id="${entry.photos[0]}"><span class="mono photo-count">${entry.photos.length} photo${entry.photos.length>1?'s':''}</span></div>` : ''}
       <div class="tag-footer"><span>${entry.dateAdded||''}</span><span>OPEN →</span></div>
     `;
@@ -1326,13 +1326,24 @@ function openSheet(entry){
       <button class="sheet-btn" onclick="saveEntry()">Save</button>
     </div>
 
-    <div class="field" style="margin:0 16px 16px;">
-      <label>Status</label>
-      <select id="f_status">
-        ${Object.entries(STATUS_LABELS).map(([val,label])=>
-          `<option value="${val}" ${getEntryStatus(e)===val ? 'selected' : ''}>${label}</option>`
-        ).join('')}
-      </select>
+    <div class="field-row" style="margin:0 16px 16px;">
+      <div class="field">
+        <label>Status</label>
+        <select id="f_status">
+          ${Object.entries(STATUS_LABELS).map(([val,label])=>
+            `<option value="${val}" ${getEntryStatus(e)===val ? 'selected' : ''}>${label}</option>`
+          ).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label>Source</label>
+        <select id="f_source">
+          <option value="dad" ${e.source==='dad'?'selected':''}>From Dad</option>
+          <option value="experience" ${e.source==='experience'?'selected':''}>My experience</option>
+          <option value="ai" ${e.source==='ai'?'selected':''}>AI-assisted</option>
+          <option value="manual" ${e.source==='manual'?'selected':''}>Service manual</option>
+        </select>
+      </div>
     </div>
 
     <div class="form-section">
@@ -1400,40 +1411,6 @@ function openSheet(entry){
     </div>
 
     <div class="field">
-      <label>Symptom / Title <span class="mono" style="color:var(--muted); text-transform:none; letter-spacing:0; font-size:11px;">(optional — fill in once diagnosed)</span></label>
-      <input type="text" id="f_title" placeholder="e.g. Engine cranks but won't start" value="${escapeHtml(e.title)}">
-    </div>
-    <div class="field">
-      <label>Source</label>
-      <select id="f_source">
-        <option value="dad" ${e.source==='dad'?'selected':''}>From Dad</option>
-        <option value="experience" ${e.source==='experience'?'selected':''}>My experience</option>
-        <option value="ai" ${e.source==='ai'?'selected':''}>AI-assisted</option>
-        <option value="manual" ${e.source==='manual'?'selected':''}>Service manual</option>
-      </select>
-    </div>
-
-    <div class="field">
-      <label>Service Checklist</label>
-      <label class="checklist-check" style="margin-bottom:10px;">
-        <input type="checkbox" id="f_showAllFields" ${e.showAllFields?'checked':''} onchange="onCategoryOrShowAllChange()">
-        <span>Show all fields</span>
-      </label>
-      <div id="checklistHiddenHint" class="mono" style="color:var(--muted); font-size:11px; margin-bottom:8px; display:none;"></div>
-      <div class="checklist-grid" id="checklistGrid"></div>
-    </div>
-
-    <div class="field"><label>Likely Causes</label><textarea id="f_causes">${escapeHtml(e.causes)}</textarea></div>
-    <div class="field"><label>Diagnostic Steps</label><textarea id="f_steps">${escapeHtml(e.steps)}</textarea></div>
-    <div class="field">
-      <label>The Fix</label>
-      <div id="checklistFixPreview" class="checklist-fix-preview"></div>
-      <textarea id="f_fix" placeholder="Notes go here — checked items above are added automatically">${escapeHtml(e.fix)}</textarea>
-    </div>
-    <div class="field"><label>Parts</label><textarea id="f_partsUsed" placeholder="e.g. AIR FILTER, SPARK PLUG NGK BPR6ES — needed, quoted, or used" oninput="uppercaseInput(this)">${escapeHtml(e.partsUsed)}</textarea></div>
-    <div class="field"><label>Notes</label><textarea id="f_notes">${escapeHtml(e.notes)}</textarea></div>
-
-    <div class="field">
       <label>Photos</label>
       <div class="photo-actions-row">
         <button type="button" class="btn-photo" onclick="triggerPhotoInput()">📷 Take Photo</button>
@@ -1441,6 +1418,37 @@ function openSheet(entry){
       </div>
       <div class="photo-field-grid" id="draftPhotoGrid"></div>
     </div>
+
+    <div class="form-section">
+      <div class="form-section-title">The Work</div>
+      <div class="field"><label>Likely Causes</label><textarea id="f_causes">${escapeHtml(e.causes)}</textarea></div>
+      <div class="field"><label>Diagnostic Steps</label><textarea id="f_steps">${escapeHtml(e.steps)}</textarea></div>
+
+      <div class="field">
+        <label>Service Checklist</label>
+        <label class="checklist-check" style="margin-bottom:10px;">
+          <input type="checkbox" id="f_showAllFields" ${e.showAllFields?'checked':''} onchange="onCategoryOrShowAllChange()">
+          <span>Show all fields</span>
+        </label>
+        <div id="checklistHiddenHint" class="mono" style="color:var(--muted); font-size:11px; margin-bottom:8px; display:none;"></div>
+        <div class="checklist-grid" id="checklistGrid"></div>
+      </div>
+
+      <div class="field">
+        <label>The Cause <span class="mono" style="color:var(--muted); text-transform:none; letter-spacing:0; font-size:11px;">(this becomes the entry's title on the board)</span></label>
+        <input type="text" id="f_title" placeholder="The primary cause of the primary complaint" value="${escapeHtml(e.title)}">
+      </div>
+
+      <div class="field"><label>Parts</label><textarea id="f_partsUsed" placeholder="e.g. AIR FILTER, SPARK PLUG NGK BPR6ES — needed, quoted, or used" oninput="uppercaseInput(this)">${escapeHtml(e.partsUsed)}</textarea></div>
+
+      <div class="field">
+        <label>The Fix</label>
+        <div id="checklistFixPreview" class="checklist-fix-preview"></div>
+        <textarea id="f_fix" placeholder="What fixed the primary complaint">${escapeHtml(e.fix)}</textarea>
+      </div>
+    </div>
+
+    <div class="field"><label>Notes</label><textarea id="f_notes">${escapeHtml(e.notes)}</textarea></div>
   `;
   pushView('sheet');
   document.getElementById('sheetOverlay').classList.add('open');

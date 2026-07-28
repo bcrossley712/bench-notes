@@ -1,6 +1,6 @@
 # Bench Notes — Things to Do at the Computer
 
-_Last updated: PWA sign-in confirmed working from the installed home-screen icon, OneDrive sync/restore/Clear Local Data all tested and confirmed working. Repair status field (4 stages) added to the PWA — desktop still needs it, see Shared data format below. Field label consistency pass done (Model/Type, Code, SN, Phone, Received callouts) plus live phone formatting and auto-uppercase on model/serial/code fields. QuickBooks invoice export confirmed as QuickBooks Pro 2014 (Desktop, IIF path) — documented as a future idea, not started. Desktop app untouched since its last update — nothing there has been tested yet. Live open decision: possibly consolidating to PWA-only instead of maintaining desktop separately — see "Decisions to make" below._
+_Last updated: A full session of PWA-only changes, none of it yet tested by the user (all verified for syntax only). Data-safety bug pass: sync baseline no longer goes stale on a photo-sync hiccup, conflict-duplicate IDs are deterministic, deleteEntry() no longer deletes a photo another surviving entry still needs, save/photo-attach failures now show a message instead of failing silently, persistent storage requested on load, new manual "clean up old deleted entries" tool in Settings → Maintenance. Feature/schema changes: new "Waiting on Quote" status (own badge color), equipment category field (type-ahead + freeform) that narrows the Service Checklist per category with a "Show all fields" override, Fuel Additive removed from the checklist, Oil Change relabeled "Oil", new equipmentBrand/engineBrand fields, "Parts Used" relabeled "Parts", title relabeled "The Cause" in the UI (field name unchanged). Layout: Engine filter chip replaced by Category filter, card badge shows category not engine, card preview clamped to 2 lines, full add/edit form reorder (Status+Source top, Customer, Equipment, Photos, new "The Work" section, Notes last). Desktop parity gap has grown accordingly — see "Shared data format" below. Also confirmed: `sync-build/mergeEntries.js`, previously described elsewhere as the tested canonical merge reference, has never existed in this repo at any commit (checked full git history) — notes updated to reflect it was never actually built/delivered, not lost._
 
 ## Repo structure — decided and built
 - [x] One repo (`bench-notes`), not two — `/pwa` and `/desktop` subfolders
@@ -76,8 +76,9 @@ _Last updated: PWA sign-in confirmed working from the installed home-screen icon
       customerPhone, equipmentModel, equipmentSerial, dateReceived,
       customerRequest (kept separate from title/symptom, as decided)
 - [ ] **PARITY GAP — PWA only, desktop needs this next session:** `status`
-      (one of `needs-diagnosis` / `waiting-parts` / `in-progress` /
-      `complete`, defaults to `needs-diagnosis`) and `completedAt`
+      (one of `needs-diagnosis` / `waiting-quote` / `waiting-parts` /
+      `in-progress` / `complete`, defaults to `needs-diagnosis`) and
+      `completedAt`
       (timestamp, stamped when status becomes `complete`, cleared if
       it moves away from `complete` again) added to the PWA entry
       schema and UI (dropdown in the add/edit sheet, color-coded board
@@ -93,6 +94,15 @@ _Last updated: PWA sign-in confirmed working from the installed home-screen icon
       desktop should use the same fallback logic, not a one-time
       migration script, so it stays correct for entries synced in from
       elsewhere too.
+- [ ] **PARITY GAP — PWA only, added this session:** `equipmentCategory`
+      (type-ahead + freeform, drives which Service Checklist fields
+      show), `equipmentBrand`, `engineBrand`, `showAllFields` (per-entry
+      override for the category narrowing). Desktop's add/edit form
+      needs the same fields before entries synced from desktop stop
+      looking incomplete on the PWA's card/filter/checklist logic — an
+      entry with no `equipmentCategory` just shows every checklist
+      field, so this degrades gracefully today, but it's still a real
+      gap to close, not just cosmetic.
 - [ ] Define + document: `bench_notes_data.json` (array of entries, same
       field names on both apps) + a `photos/` folder of real image files,
       named to match filenames referenced in the JSON. Note: the OneDrive
@@ -126,8 +136,12 @@ _Last updated: PWA sign-in confirmed working from the installed home-screen icon
       periodic background timer (removed; unnecessary overhead for a
       2-device, low-concurrency setup)
 - [x] Merge logic: pull remote → union by entry `id` with local → write
-      merged result locally → push merged result back — built, unit-tested
-      in `sync-build/mergeEntries.js` before being copied into the app
+      merged result locally → push merged result back — built and live
+      in `pwa/app.js`. (A standalone `sync-build/mergeEntries.js` unit-
+      test reference copy was described in earlier notes but never
+      actually existed in this repo — confirmed via full git history —
+      so there's no separate tested copy to point to, just the
+      hand-written version in the app itself. See PROJECT_NOTES.md.)
 - [x] Deletion sync: tombstone-based (`deleted:true` + `updatedAt`), not a
       hard delete — competes against edits on the same newer-wins logic
 - [x] UI: "last synced" / "not signed in" / "syncing" / error indicator
@@ -218,6 +232,45 @@ for iOS entirely.
       title-required nudge) look right and behave right — confirmed
       working, replaced the
       native browser ones this session
+
+## This session's PWA changes — not yet tested by the user
+Everything below was verified for syntax only (`node --check`), not
+tried in an actual browser. Move items to [x] as you confirm them,
+same as the rest of this file.
+- [ ] Data-safety bug pass: create a real sync conflict (or watch for
+      one), confirm the sync baseline no longer goes stale and a
+      resolved conflict doesn't regenerate a new duplicate on the next
+      sync
+- [ ] Delete a conflict-duplicate entry that shares photos with the
+      entry you kept, confirm the kept entry's photos are still there
+      afterward (the specific bug that got fixed)
+- [ ] Try saving an entry / attaching a photo with the device
+      genuinely low on storage, confirm you get a message instead of
+      nothing happening
+- [ ] Settings → Maintenance → "Clean up old deleted entries…" — no
+      real 90-day-old tombstones exist yet to test against for real,
+      but worth opening once to confirm the "nothing to clean up yet"
+      message shows correctly
+- [ ] "Waiting on Quote" status: confirm it shows in the dropdown, the
+      board badge is blue and distinct from the other four, and the
+      status filter chip works
+- [ ] Equipment category: type a known category (e.g. "Walk-Behind
+      Mower"), confirm the Service Checklist narrows to the right
+      fields; switch to "Show all fields", confirm everything
+      reappears; switch category away and back, confirm any checked
+      boxes/notes on now-hidden fields weren't lost
+- [ ] Type an unrecognized/custom category, confirm the checklist
+      shows everything (not narrowed)
+- [ ] Brand fields: enter Equipment Brand + Engine Brand, save,
+      confirm both show in the detail drawer and are searchable
+- [ ] Full add/edit form: confirm every field still saves correctly
+      after the reorder (nothing got dropped or double-declared) —
+      Status, Source, Customer fields, Equipment fields, Photos, Likely
+      Causes, Diagnostic Steps, Checklist, The Cause, Parts, The Fix,
+      Notes
+- [ ] Card view: confirm Category filter chip row works (replaced
+      Engine filter), card badge shows category not engine, and a long
+      Fix no longer stretches the card past 2 preview lines
 
 ## Candidates for removal — outdated code, not removed yet
 Deliberately kept rather than deleted outright — noted here so it gets

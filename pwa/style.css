@@ -127,6 +127,7 @@
   .tag-card .source-mark{position:absolute; top:12px; right:12px; font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; padding:3px 7px; border-radius:10px;}
   .status-badge{display:inline-block; font-family:'Oswald',sans-serif; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; padding:3px 9px; border-radius:2px; margin-bottom:8px;}
   .status-badge.status-needs-diagnosis{color:#8a2a1a; background:#C4432E30; border:1px solid #C4432E60;}
+  .status-badge.status-waiting-quote{color:#1a4a8a; background:#2E6FC430; border:1px solid #2E6FC460;}
   .status-badge.status-waiting-parts{color:#7a5f10; background:#C9A22730; border:1px solid #C9A22760;}
   .status-badge.status-in-progress{color:#7a3a1a; background:#E85D2530; border:1px solid #E85D2560;}
   .status-badge.status-complete{color:#1f6b2e; background:#4CAF5030; border:1px solid #4CAF5060;}
@@ -138,7 +139,7 @@
   .source-manual{background:#83838333; color:#444;}
   .tag-card h3{margin:12px 0 6px; font-size:16.5px; color:var(--ink); text-transform:none; letter-spacing:0; line-height:1.3;}
   .tag-card .category-badge{display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); background:#00000010; padding:3px 8px; border-radius:2px; margin-bottom:8px;}
-  .tag-card .preview{font-size:13px; color:var(--ink-soft); line-height:1.5;}
+  .tag-card .preview{font-size:13px; color:var(--ink-soft); line-height:1.5; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;}
   .card-photo-thumb{margin-top:10px; height:80px; border-radius:2px; background-color:#00000015; background-size:cover; background-position:center; position:relative; display:flex; align-items:flex-end;}
   .card-photo-thumb .photo-count{background:#000000aa; color:#fff; font-size:10px; padding:2px 6px; border-radius:2px; margin:6px;}
   .tag-card .tag-footer{margin-top:12px; display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-soft); border-top:1px dashed #00000022; padding-top:7px;}

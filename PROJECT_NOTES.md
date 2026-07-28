@@ -72,7 +72,7 @@ Two apps, one shared entry format:
 **On scope:** this started as a pure knowledge log (symptom → cause →
 fix, for future reference) and has grown real active work-order
 tracking on top of that (customer intake, and now repair status —
-Needs Diagnosis / Waiting on Parts / In Progress / Complete — see PWA
+Needs Diagnosis / Waiting on Quote / Waiting on Parts / In Progress / Complete — see PWA
 specifics below). That's a deliberate direction, not scope creep to
 walk back: the knowledge-capture core hasn't gone anywhere, entries
 still work fine with just a symptom/cause/fix and nothing else filled
@@ -191,19 +191,25 @@ are*, so you don't accidentally re-litigate settled decisions.
     `matchesFilters()` instead of at load. PWA filters tombstones out
     at `loadEntries()` since IndexedDB is written per-record, not as
     one blob, so the tombstone stays safely in IndexedDB either way.
-  - **Canonical merge logic**, tested standalone before being copied
-    into the apps: `sync-build/mergeEntries.js` +
+  - **`sync-build/mergeEntries.js` reference copy — never actually
+    built, confirmed.** An earlier session's notes described a
+    standalone, unit-tested `sync-build/mergeEntries.js` +
     `sync-build/mergeEntries.test.js` (10 scenarios: new-entry-each-
     side, no-op merge, one-sided edits, real conflicts, delete-vs-edit
-    ordering, both-sides-delete). This isn't part of either app's
-    deployed code — it's a scratch/reference copy for verifying the
-    algorithm in Node before hand-copying it into `pwa/app.js`
-    (and eventually `desktop/bench-notes.html`). **If the merge logic
-    ever needs to change, update `sync-build/mergeEntries.js` first,
-    re-run the tests, then copy the verified function into both apps**
-    — don't edit the copies in place without re-verifying against this
-    test suite, since the whole point is it's easy to get a subtle
-    edge case wrong.
+    ordering, both-sides-delete) as the canonical, tested-in-Node
+    reference the app's merge logic should be copied from/verified
+    against. **Checked full git history (`git log --all -- sync-build/`)
+    — it has never existed in this repo at any commit.** Best read:
+    that earlier session built and tested it in its own temporary
+    sandbox, wrote the notes as if it were a permanent part of the
+    repo, but never actually delivered/committed the files — the
+    documentation got ahead of what was actually handed over. The only
+    real risk this caused is trusting a safety net that wasn't there;
+    it never affected the app itself, since the merge logic that
+    actually runs is the hand-written version live in `pwa/app.js`,
+    exercised by real syncing. If a standalone, tested reference copy
+    like this is wanted going forward, it needs to be built fresh —
+    don't assume it exists or try to "restore" it from anywhere.
   - **Photo sync — built.** Individual files in a `photos/` subfolder
     inside the App Folder (mirrors how desktop already stores things
     locally: JSON + photos folder), not embedded in the entries JSON —
@@ -289,21 +295,33 @@ are*, so you don't accidentally re-litigate settled decisions.
   - **Both apps use the exact same entry field names, deliberately** —
   not just a similar shape, but identical field
   names so a future sync layer doesn't have to translate between two
-  formats. Current entry fields: `title`, `engineModel`, `engineCode`,
-  `source`, `causes`, `steps`, `fix`, `partsUsed`, `notes`, `photos[]`,
-  `customerName`, `customerPhone`, `equipmentModel`, `equipmentSerial`,
+  formats. Current entry fields (refreshed this session — this list
+  had drifted out of date even before this session's changes, missing
+  `status`/`completedAt` entirely):
+  `title` (UI-labeled "The Cause" in the PWA — see PWA specifics —
+  field name unchanged), `engineBrand`, `engineModel`, `engineCode`,
+  `source`, `causes`, `steps`, `fix`, `partsUsed` (UI-labeled "Parts"
+  in the PWA), `notes`, `photos[]`, `customerName`, `customerPhone`,
+  `equipmentBrand`, `equipmentModel`, `equipmentSerial`,
+  `equipmentCategory` (PWA-only so far — see PWA specifics),
   `dateReceived`, `customerRequest`, `checklist` (object keyed by item
   id, e.g. `sparkTest: {checked, note}` — see `CHECKLIST_ITEMS` in each
-  app for the current 13 items), `orderNumber` (permanent, assigned
-  once at creation — see note below), `completed`, `createdAt`,
-  `updatedAt` (added this build — stamped on every create/edit, see
-  `saveEntry()`; required by the sync merge logic), `dateAdded`.
+  app for the current 12 items; was 13 before Fuel Additive was
+  removed this session), `showAllFields` (PWA-only, see PWA specifics),
+  `status` (one of `needs-diagnosis` / `waiting-quote` / `waiting-
+  parts` / `in-progress` / `complete`, PWA-only, see PWA specifics),
+  `completedAt` (timestamp, PWA-only, see PWA specifics),
+  `orderNumber` (permanent, assigned once at creation — see note
+  below), `completed`, `createdAt`, `updatedAt` (stamped on every
+  create/edit; required by the sync merge logic), `dateAdded`.
   Two more fields exist but are conditional/rare, not part of the
   normal shape: `deleted` (tombstone flag, set by `deleteEntry()`,
   see Sync plan above) and `conflictOf` (only present on a sync
   conflict's duplicate copy, points at the id of the entry that won
   the conflict). If you add a field to one app, add it to the other at
-  the same time.
+  the same time — `equipmentCategory`/`equipmentBrand`/`engineBrand`/
+  `showAllFields`/`waiting-quote` are current PWA-only gaps, added
+  this session, not yet ported to desktop.
 - **`orderNumber` is assigned once, at creation, and never recomputed.**
   Earlier versions of both apps displayed a work-order number computed
   live from array position, which reshuffled every entry's number
@@ -410,7 +428,110 @@ are*, so you don't accidentally re-litigate settled decisions.
   auto-stamp during normal use. Completed entries stay on
   the board by default (nothing auto-hides) — filter to hide them if
   wanted. **Desktop parity gap — see TODO.md Shared data format**:
-  desktop has neither the field nor the UI for this yet.
+  desktop has neither the field nor the UI for this yet. **`waiting-
+  quote` added this session**, sitting between `needs-diagnosis` and
+  `waiting-parts` — same mechanism as the other four, own badge color
+  (blue) so it's visually distinct.
+- **Equipment category** (`equipmentCategory`, added this session):
+  free-type input with a `<datalist>` of 9 starting options
+  (`EQUIPMENT_CATEGORY_OPTIONS` in `pwa/app.js`: Walk-Behind Mower,
+  Riding Mower / Zero-Turn, Chainsaw, String Trimmer, Blower, Hedge
+  Trimmer, Tiller, Generator, Pressure Washer) — picking from the list
+  or typing something else both work, nothing is forced. Drives which
+  Service Checklist fields are shown (`getVisibleChecklistKeys()`):
+  every category gets a base six (Spark Test, Spark Plug, Compression
+  Test, Fuel Tank, Air Filter, Oil — `CHECKLIST_BASE`), plus
+  category-specific extras (`CATEGORY_CHECKLIST_EXTRAS`) — Walk-Behind
+  Mower adds Clean Deck + Blade Sharpening; Riding Mower/Zero-Turn adds
+  Fuel Filter + Oil Filter + Lube Front End + Tire Pressure + Clean
+  Deck + Blade Sharpening; Chainsaw adds Blade Sharpening; String
+  Trimmer/Blower/Hedge Trimmer/Tiller/Generator/Pressure Washer are
+  base-only. **A blank or unrecognized category always shows every
+  field** — narrowing only happens for a category on this known list,
+  never by default, so a typo or an uncategorized entry never silently
+  hides something needed. A per-entry `showAllFields` toggle overrides
+  the narrowing entirely regardless of category. Checklist data for a
+  currently-hidden field is never lost: `liveChecklistState` in
+  `pwa/app.js` holds every key's `{checked, note}` independent of
+  which rows are currently rendered, so switching category back and
+  forth (or toggling "Show all fields") restores previously-entered
+  values exactly.
+- **Checklist items changed this session** (`CHECKLIST_ITEMS` in
+  `pwa/app.js`, now 12 items, was 13): Fuel Additive removed entirely
+  — the shop recommends it verbally but doesn't track it as a
+  checklist item; old entries' `fuelAdditive` data is untouched, just
+  no longer rendered anywhere. Oil Change relabeled "Oil" so either
+  "checked" or "changed" can go in the note.
+- **Brand fields added this session:** `equipmentBrand` and
+  `engineBrand`, split out from `equipmentModel`/`engineModel` (which
+  used to have the brand typed directly in, e.g. "TORO 20370" in the
+  Model field — now Brand and Model are separate inputs).
+- **Two UI relabelings this session, no schema change:** `title` is
+  labeled "The Cause" in the form (with a small note that it becomes
+  the entry's board title) — field name and its role as the board
+  headline are unchanged, this is copy only. `partsUsed` is labeled
+  "Parts" instead of "Parts Used," meant to also hold parts still
+  needed or quoted, not just parts already used.
+- **Add/edit form field order reworked this session**
+  (`openSheet()`): Status + Source (top row) → Customer → Equipment →
+  Photos → a new "The Work" section (Likely Causes, Diagnostic Steps,
+  Service Checklist, The Cause, Parts, The Fix) → Notes. Photos moved
+  up from the very bottom to right after Equipment, since photos are
+  usually taken while looking at the equipment, not at the end of data
+  entry. Source moved up next to Status — both are "state of this
+  ticket" metadata, kept separate from the technical narrative below.
+  The Cause deliberately sits *after* Likely Causes/Diagnostic
+  Steps/Checklist now — it's meant to be the concise diagnosis written
+  once the rest is worked through, not a first-guess symptom field.
+- **Board card changes this session:** the Engine filter chip row was
+  replaced by a Category filter chip row (`categoryFilter`/
+  `renderCategoryFilters()`, was `engineFilter`/`renderEngineFilters()`),
+  and the card badge shows `equipmentCategory` instead of
+  `engineModel` (`.category-badge` CSS class, was `.engine-badge`).
+  Engine brand/model/code are unchanged everywhere else — still on the
+  form, in the detail drawer, and searchable, just off the card/filter
+  row. Card preview text (`.preview`) is now clamped to 2 lines via
+  `-webkit-line-clamp` (previously unbounded — a long Fix could make a
+  card arbitrarily tall) and pulls from `fix || causes` only —
+  `customerRequest` was dropped as a fallback since in practice it
+  tends to just restate the title/Cause in different words.
+- **Data-safety fixes this session, all in `pwa/app.js`:**
+  - Sync baseline is now saved immediately after a successful push,
+    not after photo sync completes. Previously, if photo sync threw
+    for any reason, the whole sync's baseline update was skipped even
+    though entries had already merged/saved/pushed successfully —
+    leaving a stale baseline that could make the next sync miscompare
+    "changed since last sync" and manufacture a false conflict. Photo
+    sync failures are now caught separately and no longer block or
+    roll back the (already-correct) entries sync.
+  - Conflict-duplicate IDs are now deterministic
+    (`olderId-conflict-<older.updatedAt>`, was
+    `olderId-conflict-<Date.now()>`) so a re-run of the merge on the
+    same disagreement converges on the same duplicate record instead
+    of minting a new one every time.
+  - `deleteEntry()` no longer deletes a photo blob that another
+    surviving entry still references — it builds a set of every photo
+    ID still used elsewhere first. This mattered specifically for
+    conflict-duplicate entries, which are copies of an *older* version
+    of another entry and very often still list the same photo IDs as
+    the surviving version; deleting the duplicate could previously
+    wipe photos the kept entry still needed.
+  - Saving an entry or attaching a photo now catches IndexedDB write
+    failures (e.g. device storage full) and shows a message instead of
+    failing completely silently.
+  - `navigator.storage.persist()` is requested on load (best-effort,
+    not guaranteed) to reduce the chance of the browser evicting
+    IndexedDB data under storage pressure.
+  - New manual cleanup tool: Settings → Maintenance → "Clean up old
+    deleted entries…" (`cleanUpOldRecords()`). Only removes tombstoned
+    entries and conflict-duplicate copies untouched for 90+ days
+    (`CLEANUP_AGE_MS`), never anything currently visible on the board,
+    and warns the user to confirm other devices have synced recently
+    first. When signed in, it deliberately bypasses the normal merge —
+    it edits the OneDrive file directly to also drop the same IDs
+    remotely — since a normal merge can't distinguish "never had this
+    id" from "deliberately removed it" and would just pull the purged
+    records back down.
 - **`pwa/index.html` + `pwa/style.css` + `pwa/app.js`** (split this
   session): the app grew from a single ~1,950-line HTML file to a
   point where that was hurting more than the zero-build-step
@@ -471,8 +592,11 @@ what's tested vs. not, and for open decisions. As of this handoff:
   by the user. Don't treat sync as unbuilt; that was true early on but
   isn't anymore.
 - **Desktop is the actual gap.** It hasn't been touched in a long time —
-  no OneDrive sync, no repair-status field, nothing from this session's
-  PWA work has a desktop equivalent yet. See TODO.md's "Decisions to
+  no OneDrive sync, no repair-status field, and now also no equipment
+  category/brand fields, no checklist-narrowing-by-category, no
+  showAllFields, no Waiting on Quote status, no card/form rework —
+  nothing from the last several sessions of PWA work has a desktop
+  equivalent yet. See TODO.md's "Decisions to
   make" for a live, undecided question that affects whether desktop is
   even worth continuing to build out: possibly consolidating to PWA-only
   rather than maintaining two apps, given how much more iteration the
