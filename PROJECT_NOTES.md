@@ -178,6 +178,27 @@ are*, so you don't accidentally re-litigate settled decisions.
     kept as a new entry titled "… (⚠ sync conflict copy)" with a
     `conflictOf` field pointing at the surviving one, so nothing is
     silently discarded.
+  - **Work order number collisions — built.** `orderNumber` is stamped
+    once at creation as (local max + 1), computed only from what that
+    device can see. Two devices creating *new* entries while offline
+    from each other can independently hand out the same number to two
+    different entries — `mergeEntries()` unions by `id`, so both
+    entries survive the merge intact, each still holding the number it
+    was given. `resolveOrderNumberCollisions()` runs immediately after
+    every `mergeEntries()` call (both the regular sync and the
+    restore-from-backup path), before the merged result is saved or
+    pushed, and fixes any numbers shared by 2+ entries. Deterministic
+    on purpose — no server arbitrates, so both devices running this
+    independently on the same merged set land on the identical
+    resolution: earliest `createdAt` keeps the number (ties broken by
+    `id`), losers get bumped above the current max in that same fixed
+    order. Real tradeoff: if a collision does get resolved, the
+    "losing" entry's number changes after the fact — unavoidable
+    without a central number authority, and rare enough (both devices
+    have to create new entries in the same offline window) not to be
+    worth solving any other way. **PWA only — desktop has no sync yet,
+    but this same logic needs to travel with it whenever desktop
+    OneDrive sync gets built.**
   - **Deletion is a tombstone, not a removal — built.** `deleteEntry()`
     in both apps sets `deleted: true` + bumps `updatedAt` instead of
     removing the record. The delete competes against edits on the
@@ -298,8 +319,9 @@ are*, so you don't accidentally re-litigate settled decisions.
   formats. Current entry fields (refreshed this session — this list
   had drifted out of date even before this session's changes, missing
   `status`/`completedAt` entirely):
-  `title` (UI-labeled "The Cause" in the PWA — see PWA specifics —
-  field name unchanged), `engineBrand`, `engineModel`, `engineCode`,
+  `title` (UI-labeled "Diagnosis" in the PWA, was "The Cause" — see
+  PWA specifics — field name unchanged), `primaryComplaint` (PWA-only,
+  added this session — see PWA specifics), `engineBrand`, `engineModel`, `engineCode`,
   `source`, `causes`, `steps`, `fix`, `partsUsed` (UI-labeled "Parts"
   in the PWA), `notes`, `photos[]`, `customerName`, `customerPhone`,
   `equipmentBrand`, `equipmentModel`, `equipmentSerial`,
@@ -320,8 +342,9 @@ are*, so you don't accidentally re-litigate settled decisions.
   conflict's duplicate copy, points at the id of the entry that won
   the conflict). If you add a field to one app, add it to the other at
   the same time — `equipmentCategory`/`equipmentBrand`/`engineBrand`/
-  `showAllFields`/`waiting-quote` are current PWA-only gaps, added
-  this session, not yet ported to desktop.
+  `showAllFields`/`waiting-quote`/`primaryComplaint` are current
+  PWA-only gaps, added across recent sessions, not yet ported to
+  desktop.
 - **`orderNumber` is assigned once, at creation, and never recomputed.**
   Earlier versions of both apps displayed a work-order number computed
   live from array position, which reshuffled every entry's number
@@ -466,23 +489,48 @@ are*, so you don't accidentally re-litigate settled decisions.
   `engineBrand`, split out from `equipmentModel`/`engineModel` (which
   used to have the brand typed directly in, e.g. "TORO 20370" in the
   Model field — now Brand and Model are separate inputs).
-- **Two UI relabelings this session, no schema change:** `title` is
-  labeled "The Cause" in the form (with a small note that it becomes
-  the entry's board title) — field name and its role as the board
-  headline are unchanged, this is copy only. `partsUsed` is labeled
-  "Parts" instead of "Parts Used," meant to also hold parts still
-  needed or quoted, not just parts already used.
+- **`title` relabeled twice since:** first "The Cause" (no schema
+  change), then **"Diagnosis" in a later session** — field name
+  unchanged both times, copy only. It no longer drives the board
+  title (see `primaryComplaint` below); it now shows as the card's
+  preview line instead. `partsUsed` is labeled "Parts" instead of
+  "Parts Used," meant to also hold parts still needed or quoted, not
+  just parts already used.
+- **`primaryComplaint` — new field, added in a later session.** A
+  short, concise summary field in the Customer section (e.g. "won't
+  start"), distinct from the longer freeform `customerRequest`
+  textarea ("what the customer said," which the user pointed out often
+  runs longer than a title should be). Card `<h3>` headline and detail
+  drawer header both now read `primaryComplaint || title ||
+  customerName || 'Untitled entry'` — `title` (Diagnosis) only becomes
+  the headline as a fallback when Primary Complaint is empty.
+  **PWA-only, added this session — see field list above.**
+- **Diagnosis (`title`) was missing from the detail drawer entirely**
+  until a later session fixed it — it was only ever read as a fallback
+  for the header text, so once `primaryComplaint` took the header,
+  Diagnosis effectively vanished from the expanded view (it still
+  showed on the card). Added a dedicated "Diagnosis" detail-section,
+  positioned to match the form's field order: after "Diagnostic Steps,"
+  before "The Fix."
+- **Collapsible form sections, added in a later session:** Customer,
+  Equipment, and Service Checklist section headers in the add/edit
+  sheet are now tappable (chevron indicator, `toggleFormSection()` in
+  `pwa/app.js`) to collapse/expand. All three **always start expanded**
+  on open — no persisted state, purely a per-session scroll-reduction
+  convenience. Generic helper, so wrapping additional sections later
+  (e.g. "The Work") is a one-line change, not new logic.
 - **Add/edit form field order reworked this session**
   (`openSheet()`): Status + Source (top row) → Customer → Equipment →
   Photos → a new "The Work" section (Likely Causes, Diagnostic Steps,
-  Service Checklist, The Cause, Parts, The Fix) → Notes. Photos moved
+  Service Checklist, Diagnosis, Parts, The Fix) → Notes. Photos moved
   up from the very bottom to right after Equipment, since photos are
   usually taken while looking at the equipment, not at the end of data
   entry. Source moved up next to Status — both are "state of this
   ticket" metadata, kept separate from the technical narrative below.
-  The Cause deliberately sits *after* Likely Causes/Diagnostic
-  Steps/Checklist now — it's meant to be the concise diagnosis written
-  once the rest is worked through, not a first-guess symptom field.
+  Diagnosis (`title`) deliberately sits *after* Likely Causes/
+  Diagnostic Steps/Checklist now — it's meant to be the concise
+  conclusion written once the rest is worked through, not a
+  first-guess symptom field.
 - **Board card changes this session:** the Engine filter chip row was
   replaced by a Category filter chip row (`categoryFilter`/
   `renderCategoryFilters()`, was `engineFilter`/`renderEngineFilters()`),
@@ -492,9 +540,14 @@ are*, so you don't accidentally re-litigate settled decisions.
   form, in the detail drawer, and searchable, just off the card/filter
   row. Card preview text (`.preview`) is now clamped to 2 lines via
   `-webkit-line-clamp` (previously unbounded — a long Fix could make a
-  card arbitrarily tall) and pulls from `fix || causes` only —
-  `customerRequest` was dropped as a fallback since in practice it
-  tends to just restate the title/Cause in different words.
+  card arbitrarily tall) and, **as of a later session, pulls from
+  `title || fix || causes`** (was `fix || causes` only) — once
+  `primaryComplaint` became the headline, Diagnosis (`title`) became
+  the natural lead-in for "what happened / how it was fixed" on this
+  line. `customerRequest` was dropped as a fallback since in practice
+  it tends to just restate the complaint in different words. Line 2
+  (conditional `customerName`, shown only when `title` is present) is
+  unchanged.
 - **Data-safety fixes this session, all in `pwa/app.js`:**
   - Sync baseline is now saved immediately after a successful push,
     not after photo sync completes. Previously, if photo sync threw

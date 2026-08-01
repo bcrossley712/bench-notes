@@ -2,6 +2,8 @@
 
 _Last updated: A full session of PWA-only changes, none of it yet tested by the user (all verified for syntax only). Data-safety bug pass: sync baseline no longer goes stale on a photo-sync hiccup, conflict-duplicate IDs are deterministic, deleteEntry() no longer deletes a photo another surviving entry still needs, save/photo-attach failures now show a message instead of failing silently, persistent storage requested on load, new manual "clean up old deleted entries" tool in Settings → Maintenance. Feature/schema changes: new "Waiting on Quote" status (own badge color), equipment category field (type-ahead + freeform) that narrows the Service Checklist per category with a "Show all fields" override, Fuel Additive removed from the checklist, Oil Change relabeled "Oil", new equipmentBrand/engineBrand fields, "Parts Used" relabeled "Parts", title relabeled "The Cause" in the UI (field name unchanged). Layout: Engine filter chip replaced by Category filter, card badge shows category not engine, card preview clamped to 2 lines, full add/edit form reorder (Status+Source top, Customer, Equipment, Photos, new "The Work" section, Notes last). Desktop parity gap has grown accordingly — see "Shared data format" below. Also confirmed: `sync-build/mergeEntries.js`, previously described elsewhere as the tested canonical merge reference, has never existed in this repo at any commit (checked full git history) — notes updated to reflect it was never actually built/delivered, not lost._
 
+_Since then (user confirmed the above batch tested and working, most of it kept as-is): new `primaryComplaint` field (short board-title summary, separate from the longer `customerRequest` notes) now drives the card headline and detail-drawer header, with `title` (relabeled again, "The Cause" → "Diagnosis") falling back only when Primary Complaint is empty and showing as the card's preview line instead. Diagnosis was found to be missing from the detail drawer entirely (only ever read as a header fallback) — added as its own section. Customer/Equipment/Service Checklist sections in the add/edit form are now collapsible (always start expanded). Data-safety fix: work-order numbers can collide when two devices create new entries while offline from each other (each computes "next number" from only its own local data) — `resolveOrderNumberCollisions()` now runs after every merge to deterministically fix collisions, so both devices land on the same resolution independently. None of this has been tried in a browser yet either — see "Latest session's PWA changes" below._
+
 ## Repo structure — decided and built
 - [x] One repo (`bench-notes`), not two — `/pwa` and `/desktop` subfolders
 - [x] GitHub Actions workflow to auto-deploy `/pwa` on push (avoids the
@@ -103,6 +105,14 @@ _Last updated: A full session of PWA-only changes, none of it yet tested by the 
       entry with no `equipmentCategory` just shows every checklist
       field, so this degrades gracefully today, but it's still a real
       gap to close, not just cosmetic.
+- [ ] **PARITY GAP — PWA only, added since the last full session:**
+      `primaryComplaint` — short summary field that now drives the
+      card headline/detail-drawer header (see PWA specifics in
+      PROJECT_NOTES.md). Desktop still uses `title` alone for its
+      board title; an entry synced from desktop with no
+      `primaryComplaint` degrades gracefully today (PWA just falls
+      back to `title`), but desktop needs the same field + UI before
+      the two apps' board-title behavior matches.
 - [ ] Define + document: `bench_notes_data.json` (array of entries, same
       field names on both apps) + a `photos/` folder of real image files,
       named to match filenames referenced in the JSON. Note: the OneDrive
@@ -142,6 +152,14 @@ _Last updated: A full session of PWA-only changes, none of it yet tested by the 
       actually existed in this repo — confirmed via full git history —
       so there's no separate tested copy to point to, just the
       hand-written version in the app itself. See PROJECT_NOTES.md.)
+- [x] Work order number collision fix: `resolveOrderNumberCollisions()`
+      runs right after every `mergeEntries()` call (regular sync +
+      restore-from-backup) to deterministically fix `orderNumber`
+      collisions caused by two devices independently creating new
+      entries while offline from each other — see PROJECT_NOTES.md
+      Sync plan for the full mechanism. **PWA only for now — desktop
+      has no sync yet, so this hasn't been an issue there, but the same
+      logic needs to go in whenever desktop OneDrive sync gets built.**
 - [x] Deletion sync: tombstone-based (`deleted:true` + `updatedAt`), not a
       hard delete — competes against edits on the same newer-wins logic
 - [x] UI: "last synced" / "not signed in" / "syncing" / error indicator
@@ -266,11 +284,36 @@ same as the rest of this file.
 - [ ] Full add/edit form: confirm every field still saves correctly
       after the reorder (nothing got dropped or double-declared) —
       Status, Source, Customer fields, Equipment fields, Photos, Likely
-      Causes, Diagnostic Steps, Checklist, The Cause, Parts, The Fix,
+      Causes, Diagnostic Steps, Checklist, Diagnosis, Parts, The Fix,
       Notes
 - [ ] Card view: confirm Category filter chip row works (replaced
       Engine filter), card badge shows category not engine, and a long
       Fix no longer stretches the card past 2 preview lines
+
+## Latest session's PWA changes — not yet tested by the user
+Everything below is on top of the batch above, which the user has
+since confirmed tested/working. Also verified for syntax only
+(`node --check`), not tried in an actual browser yet.
+- [ ] Primary Complaint field: enter a short complaint + a longer
+      Diagnosis, confirm the card headline shows Primary Complaint and
+      the preview line (3rd line) shows Diagnosis instead of Fix/Causes
+- [ ] Leave Primary Complaint blank, confirm the card headline falls
+      back to Diagnosis, then to Customer Name, same as before
+- [ ] Confirm Primary Complaint is searchable
+- [ ] Open an entry that has both Primary Complaint and Diagnosis
+      filled in, confirm the detail drawer header shows Primary
+      Complaint AND a separate "Diagnosis" section appears (between
+      Diagnostic Steps and The Fix) — this was previously missing
+      entirely once Primary Complaint existed
+- [ ] Customer/Equipment/Service Checklist sections in the add/edit
+      form: confirm tapping the header collapses/expands just that
+      section, all three start expanded on open, and collapsing one
+      doesn't affect data entry/saving in any of them
+- [ ] Work order number collision fix: hard to trigger for real
+      (needs two devices creating new entries while genuinely offline
+      from each other), so this one's more "watch for it" than
+      actively testable — if a duplicate work order number is ever
+      spotted after a sync, that's the bug this was meant to fix
 
 ## Candidates for removal — outdated code, not removed yet
 Deliberately kept rather than deleted outright — noted here so it gets

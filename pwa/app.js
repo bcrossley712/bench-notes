@@ -150,9 +150,10 @@ const SYNC_LAST_KEY = 'bn_last_synced';
 let msalInstance = null;
 let syncInProgress = false;
 
-// Same merge algorithm as sync-build/mergeEntries.js (kept in sync by hand —
-// see that file's test suite for the scenarios this logic is verified
-// against before being copied here).
+// NOTE: earlier comments/notes described a standalone, unit-tested
+// sync-build/mergeEntries.js as the canonical reference this function is
+// kept in sync with by hand. Confirmed via full git history that file
+// never actually existed in this repo — this is the only copy.
 function mergeEntries(localEntries, remoteEntries, baseline){
   baseline = baseline || {};
   const localById = new Map(localEntries.map(e => [e.id, e]));
@@ -221,6 +222,53 @@ function mergeEntries(localEntries, remoteEntries, baseline){
   }
 
   return {merged, conflicts, newBaseline};
+}
+
+// orderNumber is stamped once at creation as (local max + 1) — computed
+// only from what that device can see. Two devices creating NEW entries
+// while offline from each other can independently hand out the same
+// number to two different entries. mergeEntries() unions by id, so both
+// entries survive intact, each still holding the number it was given —
+// this is a second pass, run right after mergeEntries() and before the
+// merged result is saved/pushed, that finds and fixes those collisions.
+//
+// Must be deterministic: there's no server to arbitrate, so both devices
+// running this on the same merged set have to land on the identical
+// resolution independently. Mutates entries in place; returns true if
+// anything changed.
+function resolveOrderNumberCollisions(entries){
+  const byNumber = new Map();
+  for(const e of entries){
+    if(!e.orderNumber) continue;
+    if(!byNumber.has(e.orderNumber)) byNumber.set(e.orderNumber, []);
+    byNumber.get(e.orderNumber).push(e);
+  }
+
+  let maxNumber = entries.reduce((max, e) => e.orderNumber ? Math.max(max, e.orderNumber) : max, 0);
+  let changed = false;
+
+  for(const group of byNumber.values()){
+    if(group.length < 2) continue;
+    // Deterministic keeper: earliest createdAt keeps the number it was
+    // first assigned; ties (shouldn't happen, but just in case) broken
+    // by id so both devices agree without needing to compare anything
+    // beyond what's already in each entry.
+    const sorted = [...group].sort((a, b) => {
+      const ca = a.createdAt || 0, cb = b.createdAt || 0;
+      if(ca !== cb) return ca - cb;
+      return String(a.id).localeCompare(String(b.id));
+    });
+    // Losers reassigned in that same fixed order, above the current max
+    // — so both devices, running this independently on the same merged
+    // set, hand out the exact same replacement numbers.
+    for(let i = 1; i < sorted.length; i++){
+      maxNumber += 1;
+      sorted[i].orderNumber = maxNumber;
+      changed = true;
+    }
+  }
+
+  return changed;
 }
 
 async function initMsal(){
@@ -509,6 +557,9 @@ async function syncNow(){
     if(remotePayload === null){ syncInProgress = false; return; } // redirected for auth
 
     const { merged, newBaseline } = mergeEntries(localRaw, remotePayload.entries || [], storedBaseline);
+    if(resolveOrderNumberCollisions(merged)){
+      console.warn('Sync found duplicate work order numbers (likely created offline on two devices) — reassigned automatically.');
+    }
 
     for(const entry of merged){
       await idbPut('entries', entry);
@@ -753,6 +804,9 @@ async function handleRestoreFile(event){
     // backup, so any same-id difference is treated as a genuine conflict
     // rather than assumed to be a one-sided change.
     const { merged, conflicts } = mergeEntries(localRaw, payload.entries, {});
+    if(resolveOrderNumberCollisions(merged)){
+      console.warn('Restore found duplicate work order numbers — reassigned automatically.');
+    }
     for(const entry of merged){
       await idbPut('entries', entry);
     }
@@ -1465,7 +1519,7 @@ function openSheet(entry){
       </div>
 
       <div class="field">
-        <label>The Cause</label>
+        <label>Diagnosis</label>
         <input type="text" id="f_title" placeholder="Cause of primary complaint" value="${escapeHtml(e.title)}">
       </div>
 
@@ -1781,6 +1835,7 @@ function openDetail(id){
       ].filter(Boolean).join('<br>')}</p>` : ''}</div>` : ''}
     ${entry.causes ? `<div class="detail-section"><div class="drawer-label">Likely Causes</div><p>${escapeHtml(entry.causes)}</p></div>` : ''}
     ${entry.steps ? `<div class="detail-section"><div class="drawer-label">Diagnostic Steps</div><p>${escapeHtml(entry.steps)}</p></div>` : ''}
+    ${entry.title ? `<div class="detail-section"><div class="drawer-label">Diagnosis</div><p>${escapeHtml(entry.title)}</p></div>` : ''}
     ${(entry.fix || checklistLines(entry.checklist||{}).length) ? (()=>{
         const clLines = checklistLines(entry.checklist||{});
         const combined = [clLines.join('\n'), entry.fix].filter(Boolean).join('\n\n');
