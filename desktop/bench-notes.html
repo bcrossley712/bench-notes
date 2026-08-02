@@ -201,14 +201,6 @@
     background:radial-gradient(circle at 35% 35%, #d8d2c0, #a49c86);
     box-shadow: inset 0 0 0 3px var(--tag);
   }
-  .tag-card .tag-num{
-    position:absolute;
-    top:16px; left:34px;
-    font-family:'IBM Plex Mono',monospace;
-    font-size:11px;
-    color:var(--ink-soft);
-    letter-spacing:0.05em;
-  }
   .tag-card .source-mark{
     position:absolute;
     top:14px; right:14px;
@@ -666,23 +658,7 @@ async function loadEntries(){
     console.error('Load failed', e);
     entries = [];
   }
-  await ensureOrderNumbers();
   renderWorkspace();
-}
-
-// One-time migration + safety net: every entry gets a permanent orderNumber
-// the first time it's seen without one, assigned in creation order so old
-// entries keep roughly the numbering they already had. Once set, an
-// entry's number never changes again regardless of what else is added/removed.
-async function ensureOrderNumbers(){
-  const missing = entries.filter(e => !e.orderNumber);
-  if(missing.length === 0) return;
-  let next = entries.reduce((max,e)=> e.orderNumber ? Math.max(max, e.orderNumber) : max, 0) + 1;
-  missing.sort((a,b)=> (a.createdAt||0) - (b.createdAt||0));
-  for(const entry of missing){
-    entry.orderNumber = next++;
-  }
-  await saveEntries();
 }
 
 async function saveEntries(){
@@ -787,13 +763,11 @@ function render(){
       const card = document.createElement('div');
       card.className = 'tag-card';
       card.onclick = ()=>openEntryTab(entry.id);
-      const num = String(entry.orderNumber || 0).padStart(3,'0');
       const hasPhotos = entry.photos && entry.photos.length > 0;
       const needsDiag = isNeedsDiagnosis(entry);
       const headline = entry.title || entry.customerName || 'Untitled entry';
       card.innerHTML = `
         <div class="grommet"></div>
-        <div class="tag-num">#${num}</div>
         <div class="source-mark source-${entry.source}">${SOURCE_LABELS[entry.source]||''}</div>
         ${entry.completed ? `<div class="complete-badge">✓ Complete</div>` : (needsDiag ? `<div class="status-badge">Needs Diagnosis</div>` : '')}
         ${entry.engineModel ? `<div class="engine-badge">${escapeHtml(entry.engineModel)}</div>` : ''}
@@ -1310,11 +1284,9 @@ async function saveEntry(){
 
   if(tab.isNew){
     const newId = uid();
-    const nextNum = entries.reduce((max,e)=> e.orderNumber ? Math.max(max,e.orderNumber) : max, 0) + 1;
     entries.push({
       id: newId,
       ...data,
-      orderNumber: nextNum,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       dateAdded: new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})

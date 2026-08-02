@@ -28,6 +28,15 @@ lives in the README files.
 
 ## Working agreements with this user
 
+- **DO NO FURTHER WORK ON DESKTOP until the user explicitly asks for
+  it.** User's stated intention (as of this note) is to remove
+  `/desktop` entirely — not ready to pull the trigger yet, but no new
+  features, parity fixes, or bug fixes should go into desktop in the
+  meantime. This supersedes the "check desktop/PWA parity on every
+  change" rule below for as long as it's in effect: noting a parity
+  gap exists in passing is fine, proposing or starting to close it on
+  desktop is not. See TODO.md "Decisions to make" for the full
+  context and what actual removal will involve when requested.
 - **Confirm before starting new builds/changes** — don't just proceed
   on a big feature without checking scope/direction first, especially
   when there's real ambiguity in how to design something.
@@ -51,16 +60,18 @@ lives in the README files.
   it off, and being upfront about anything that couldn't be verified
   in a sandboxed environment (e.g. Electron's actual GUI, real device
   camera/install behavior).
-- **Check desktop/PWA parity on every change, and say so either way.**
-  Before finalizing a change to one app, explicitly check whether the
-  other app needs the same fix/feature, and state the conclusion —
-  "no desktop equivalent needed, since desktop doesn't have OneDrive
-  sync yet" is a fine answer, silently not mentioning it isn't. Shared
-  *data format* parity (add a field to one app, add it to both — see
-  "Key architectural decisions" above) is a separate, narrower rule
-  from this one: most *behavioral* changes (sync frequency, photo
-  compression, restore/import) only apply to whichever app actually
-  has that feature built, which today is PWA-only for all three.
+- **Check desktop/PWA parity on every change, and say so either way —
+  currently suspended for desktop, see the halt directive at the top
+  of this section.** Before finalizing a change to one app, explicitly
+  check whether the other app needs the same fix/feature, and state
+  the conclusion — "no desktop equivalent needed, since desktop
+  doesn't have OneDrive sync yet" is a fine answer, silently not
+  mentioning it isn't. Shared *data format* parity (add a field to one
+  app, add it to both — see "Key architectural decisions" above) is a
+  separate, narrower rule from this one: most *behavioral* changes
+  (sync frequency, photo compression, restore/import) only apply to
+  whichever app actually has that feature built, which today is
+  PWA-only for all three.
 
 ## What this is
 
@@ -178,27 +189,27 @@ are*, so you don't accidentally re-litigate settled decisions.
     kept as a new entry titled "… (⚠ sync conflict copy)" with a
     `conflictOf` field pointing at the surviving one, so nothing is
     silently discarded.
-  - **Work order number collisions — built.** `orderNumber` is stamped
-    once at creation as (local max + 1), computed only from what that
-    device can see. Two devices creating *new* entries while offline
-    from each other can independently hand out the same number to two
-    different entries — `mergeEntries()` unions by `id`, so both
-    entries survive the merge intact, each still holding the number it
-    was given. `resolveOrderNumberCollisions()` runs immediately after
-    every `mergeEntries()` call (both the regular sync and the
-    restore-from-backup path), before the merged result is saved or
-    pushed, and fixes any numbers shared by 2+ entries. Deterministic
-    on purpose — no server arbitrates, so both devices running this
-    independently on the same merged set land on the identical
-    resolution: earliest `createdAt` keeps the number (ties broken by
-    `id`), losers get bumped above the current max in that same fixed
-    order. Real tradeoff: if a collision does get resolved, the
-    "losing" entry's number changes after the fact — unavoidable
-    without a central number authority, and rare enough (both devices
-    have to create new entries in the same offline window) not to be
-    worth solving any other way. **PWA only — desktop has no sync yet,
-    but this same logic needs to travel with it whenever desktop
-    OneDrive sync gets built.**
+  - **`orderNumber` — built, then removed entirely.** Previously a
+    permanent per-entry work-order number shown as a badge on the
+    card corner. Turned out to be purely cosmetic — not used in
+    search, sort, filter, or export in either app — and its only
+    other code was the machinery that existed solely to keep that
+    display number consistent (a backfill migration, and a
+    collision-resolution pass added specifically to fix numbers that
+    could collide when two devices created new entries while offline
+    from each other). That collision fix triggered once on the user's
+    real data and silently renumbered an older entry mid-edit,
+    surfacing as "why did my work order number change when I only
+    edited the entry" — confusing given the user never used the
+    number for anything. Confirmed with the user it served no
+    function, then removed entirely: the field, the card badge, the
+    backfill migration (`ensureOrderNumbers`), and the collision
+    resolver (`resolveOrderNumberCollisions`) — from both apps. **If a
+    "work order number" is ever wanted again, don't just restore
+    this** — it was genuinely a source of confusing behavior for no
+    practical benefit; think about whether it's actually needed for
+    something (e.g. paper labeling) before rebuilding the same
+    plumbing.
   - **Deletion is a tombstone, not a removal — built.** `deleteEntry()`
     in both apps sets `deleted: true` + bumps `updatedAt` instead of
     removing the record. The delete competes against edits on the
@@ -333,8 +344,7 @@ are*, so you don't accidentally re-litigate settled decisions.
   `status` (one of `needs-diagnosis` / `waiting-quote` / `waiting-
   parts` / `in-progress` / `complete`, PWA-only, see PWA specifics),
   `completedAt` (timestamp, PWA-only, see PWA specifics),
-  `orderNumber` (permanent, assigned once at creation — see note
-  below), `completed`, `createdAt`, `updatedAt` (stamped on every
+  `completed`, `createdAt`, `updatedAt` (stamped on every
   create/edit; required by the sync merge logic), `dateAdded`.
   Two more fields exist but are conditional/rare, not part of the
   normal shape: `deleted` (tombstone flag, set by `deleteEntry()`,
@@ -345,14 +355,6 @@ are*, so you don't accidentally re-litigate settled decisions.
   `showAllFields`/`waiting-quote`/`primaryComplaint` are current
   PWA-only gaps, added across recent sessions, not yet ported to
   desktop.
-- **`orderNumber` is assigned once, at creation, and never recomputed.**
-  Earlier versions of both apps displayed a work-order number computed
-  live from array position, which reshuffled every entry's number
-  whenever a new one was added (IndexedDB/JSON array order isn't
-  chronological). Both apps now stamp a permanent `orderNumber` on an
-  entry the moment it's created, and a one-time migration
-  (`ensureOrderNumbers`) backfills it for any entry that predates this
-  fix. Never derive the displayed number from array position again.
 - **Photo order is meaningful.** `photos[0]` is always the cover/
   thumbnail — both apps rely on this convention instead of a separate
   "cover photo" field, so reordering the array (not adding a new field)
@@ -630,6 +632,51 @@ are*, so you don't accidentally re-litigate settled decisions.
   separate field — it just reorders `photos[]` so the chosen photo
   becomes index 0, since both apps already treat `photos[0]` as the
   thumbnail.
+- **OneDrive sessions lapse every ~24h by design — not a bug.**
+  Refresh tokens issued to an Azure app registered under the "SPA"
+  redirect-URI type (required for a browser app like this) have a
+  fixed, non-adjustable ~24-hour lifetime regardless of how often the
+  app is used — a Microsoft security policy for SPAs, not something
+  this app's code controls. Once it lapses, `acquireTokenSilent()`
+  fails and the account still shows signed in (`isSignedIn()` stays
+  true — only the token expired, not the remembered account), so
+  syncing quietly starts failing rather than throwing up a visible
+  prompt on its own. The only alternative is registering as a
+  "public client" (native/mobile) app instead, which gets 90-day
+  rolling tokens — rejected here since that flow requires clunky
+  device-code auth (visit a URL, type a code) instead of the current
+  one-tap redirect; not worth the trade for a once-a-day tap.
+- **Header "Reconnect OneDrive" button, added this session** — a
+  direct answer to the above rather than the auth model itself
+  changing: the user kept forgetting a lapsed connection existed
+  since the only indicator was a small colored dot on the gear icon.
+  Shows next to the settings gear, hidden unless BOTH: this device has
+  connected before, AND it isn't currently synced/syncing right now
+  (`setSyncBar()` in `pwa/app.js` toggles it alongside the existing
+  `disconnectBtn` logic). Tapping it just calls the existing
+  `signInOneDrive()` — same fast reconnect (no retyping a password
+  when the browser's own Microsoft session is still live) as the
+  "Connect OneDrive"/"Retry" button already in Settings, just visible
+  without opening anything. Tracked via a new, deliberately separate
+  `ONEDRIVE_EVER_CONNECTED_KEY` localStorage flag (not reusing
+  `SYNC_LAST_KEY`) — survives a lapsed token (so it still reads
+  "Reconnect," not "Connect") but is cleared on an *intentional*
+  disconnect from Settings, so the button doesn't nag right after the
+  user chose to disconnect.
+- **Header wordmark dropped, moved into the icon lightbox, added
+  this session.** The "BENCH NOTES" `<h1>` was crowding the header
+  once the Reconnect button needed room — decided the persistent
+  title wasn't earning its space for a single-screen app the user
+  already knows they're in (title is reassurance, not navigation
+  info, unlike a multi-tab app). Header is icon-only now
+  (`.header-brand`); tapping the icon still opens the existing
+  lightbox (`openIconLightbox()`/`closeIconLightbox()` in
+  `pwa/app.js`, unchanged), which now shows the icon, the "BENCH
+  NOTES" title underneath it, and a short appreciation note in
+  italics below that ("Knowledge gained from dad. Thank you for this
+  wonderful opportunity.") — a deliberate easter egg for Dad if he
+  ends up using this on his phone. Purely `pwa/index.html` +
+  `pwa/style.css`; no JS logic changed.
 - Deployed to GitHub Pages and tested on a real Android phone,
   including home-screen install. Still outstanding: offline/
   airplane-mode test, and getting it in front of Dad's iPhone — see
@@ -644,17 +691,17 @@ what's tested vs. not, and for open decisions. As of this handoff:
   merge, photos, restore, and disconnect have all been exercised for real
   by the user. Don't treat sync as unbuilt; that was true early on but
   isn't anymore.
-- **Desktop is the actual gap.** It hasn't been touched in a long time —
-  no OneDrive sync, no repair-status field, and now also no equipment
-  category/brand fields, no checklist-narrowing-by-category, no
-  showAllFields, no Waiting on Quote status, no card/form rework —
-  nothing from the last several sessions of PWA work has a desktop
-  equivalent yet. See TODO.md's "Decisions to
-  make" for a live, undecided question that affects whether desktop is
-  even worth continuing to build out: possibly consolidating to PWA-only
-  rather than maintaining two apps, given how much more iteration the
-  PWA has had. Don't start desktop OneDrive sync work without checking
-  whether that decision has been made first.
+- **Desktop work is halted, not an open gap to close.** It fell
+  behind over many sessions of PWA-only iteration (no OneDrive sync,
+  no repair-status field, no equipment category/brand fields, no
+  checklist-narrowing, no showAllFields, no Waiting on Quote status,
+  no card/form rework, none of it ported) — but as of this note, the
+  user's stated intention is to remove `/desktop` entirely and has
+  asked for **no further desktop work of any kind until they
+  explicitly request it.** See the halt directive at the top of
+  "Working agreements" and TODO.md's "Decisions to make" for the full
+  context. Don't propose closing desktop parity gaps or start desktop
+  OneDrive sync work — that's not a live next step anymore.
 - **QuickBooks invoice export** (see TODO.md) is a real, deliberate
   future idea — IIF file export for QuickBooks Pro 2014 — not started,
   not urgent, don't build it opportunistically without the user asking.

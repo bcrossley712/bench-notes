@@ -24,10 +24,10 @@
 <header>
   <div class="header-brand">
     <img src="icons/icon-192.png" alt="Bench Notes icon" id="headerIcon" onclick="openIconLightbox()">
-    <h1>BENCH <span>NOTES</span></h1>
   </div>
   <div style="display:flex; gap:8px; align-items:center;">
     <button id="installBtn">Install</button>
+    <button id="reconnectBtn" onclick="signInOneDrive()">Reconnect OneDrive</button>
     <button id="settingsGearBtn" onclick="openSettings()" aria-label="Settings">
       ⚙<span class="dot state-offline" id="settingsGearDot"></span>
     </button>
@@ -35,7 +35,11 @@
 </header>
 
 <div class="modal-overlay" id="iconLightboxOverlay" onclick="closeIconLightbox()">
-  <img src="icons/icon-512.png" alt="Bench Notes icon, large" class="icon-lightbox-img">
+  <div class="icon-lightbox-content">
+    <img src="icons/icon-512.png" alt="Bench Notes icon, large" class="icon-lightbox-img">
+    <h1 class="icon-lightbox-title">BENCH <span>NOTES</span></h1>
+    <p class="icon-lightbox-note">Knowledge gained from dad. Thank you for this wonderful opportunity.</p>
+  </div>
 </div>
 
 <div class="modal-overlay" id="settingsOverlay">

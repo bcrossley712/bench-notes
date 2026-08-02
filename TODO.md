@@ -2,7 +2,9 @@
 
 _Last updated: A full session of PWA-only changes, none of it yet tested by the user (all verified for syntax only). Data-safety bug pass: sync baseline no longer goes stale on a photo-sync hiccup, conflict-duplicate IDs are deterministic, deleteEntry() no longer deletes a photo another surviving entry still needs, save/photo-attach failures now show a message instead of failing silently, persistent storage requested on load, new manual "clean up old deleted entries" tool in Settings → Maintenance. Feature/schema changes: new "Waiting on Quote" status (own badge color), equipment category field (type-ahead + freeform) that narrows the Service Checklist per category with a "Show all fields" override, Fuel Additive removed from the checklist, Oil Change relabeled "Oil", new equipmentBrand/engineBrand fields, "Parts Used" relabeled "Parts", title relabeled "The Cause" in the UI (field name unchanged). Layout: Engine filter chip replaced by Category filter, card badge shows category not engine, card preview clamped to 2 lines, full add/edit form reorder (Status+Source top, Customer, Equipment, Photos, new "The Work" section, Notes last). Desktop parity gap has grown accordingly — see "Shared data format" below. Also confirmed: `sync-build/mergeEntries.js`, previously described elsewhere as the tested canonical merge reference, has never existed in this repo at any commit (checked full git history) — notes updated to reflect it was never actually built/delivered, not lost._
 
-_Since then (user confirmed the above batch tested and working, most of it kept as-is): new `primaryComplaint` field (short board-title summary, separate from the longer `customerRequest` notes) now drives the card headline and detail-drawer header, with `title` (relabeled again, "The Cause" → "Diagnosis") falling back only when Primary Complaint is empty and showing as the card's preview line instead. Diagnosis was found to be missing from the detail drawer entirely (only ever read as a header fallback) — added as its own section. Customer/Equipment/Service Checklist sections in the add/edit form are now collapsible (always start expanded). Data-safety fix: work-order numbers can collide when two devices create new entries while offline from each other (each computes "next number" from only its own local data) — `resolveOrderNumberCollisions()` now runs after every merge to deterministically fix collisions, so both devices land on the same resolution independently. None of this has been tried in a browser yet either — see "Latest session's PWA changes" below._
+_Since then (user confirmed the above batch tested and working, most of it kept as-is): new `primaryComplaint` field (short board-title summary, separate from the longer `customerRequest` notes) now drives the card headline and detail-drawer header, with `title` (relabeled again, "The Cause" → "Diagnosis") falling back only when Primary Complaint is empty and showing as the card's preview line instead. Diagnosis was found to be missing from the detail drawer entirely (only ever read as a header fallback) — added as its own section. Customer/Equipment/Service Checklist sections in the add/edit form are now collapsible (always start expanded). Work order numbers (`orderNumber`) turned out to serve no actual function and were removed entirely — field, card badge, backfill migration, and a collision-resolution fix that had briefly existed to keep the (unused) number consistent across devices, from both apps. None of this has been tried in a browser yet either — see "Latest session's PWA changes" below._
+
+_Most recently: explained why OneDrive sessions lapse roughly daily (fixed ~24h Azure SPA refresh-token policy, not a bug) and added a "Reconnect OneDrive" header button next to the settings gear so a lapsed connection isn't easy to forget about — shows only on a device that's connected before and isn't currently synced. That button needed header space, which prompted dropping the persistent "BENCH NOTES" title from the header entirely; it now lives in the icon lightbox instead (tap the header icon), alongside a new short appreciation note for Dad as an easter egg. None of this tried in a browser yet — see "Latest session's PWA changes" below._
 
 ## Repo structure — decided and built
 - [x] One repo (`bench-notes`), not two — `/pwa` and `/desktop` subfolders
@@ -45,22 +47,27 @@ _Since then (user confirmed the above batch tested and working, most of it kept 
 - [x] Mobile v1 priority — camera + photos first, sync deferred
 - [x] Repo visibility — public repo is fine (entries/photos never touch GitHub —
       they stay in browser storage on each device, only app code is public)
-- [ ] One PWA everywhere vs. keep Electron + PWA separate — **still
-      undecided, but no longer "haven't tried either yet."** This
-      session put a lot of real iteration into the PWA (restore,
-      OneDrive sync, photo compression, repair status, the file split)
-      and zero into desktop, which has sat untouched. The case for
-      PWA-only: desktop would need its own from-scratch OneDrive auth
-      (device-code flow, not a port of the PWA's), the new status
-      field, and someone to work through its whole untested checklist
-      — versus a PWA install on the desktop machine getting everything
-      already-built and already-tested for free. The case for keeping
-      desktop: none really argued yet beyond its original "direct file
-      storage, no browser fragility" rationale, which is weaker now
-      that export/restore/OneDrive sync exist specifically as safety
-      nets for that fragility. User is sitting on this deliberately,
-      not stuck — don't re-argue it from scratch, just pick it back up
-      when they're ready to decide.
+- [x] One PWA everywhere vs. keep Electron + PWA separate — **decided,
+      in progress: user's stated intention is to remove desktop
+      entirely, but isn't ready to pull the trigger yet.** Until
+      explicitly told otherwise: **do no further work on desktop** —
+      no new features, no parity fixes, no bug fixes, nothing beyond
+      what's already built. Don't bring up desktop parity gaps as
+      action items going forward either; noting a gap exists in
+      passing is fine, but don't propose or start closing it. The
+      case that led here: heavy PWA iteration for a long stretch (OneDrive
+      sync, restore, photo compression, repair status, primaryComplaint,
+      collapsible sections, and more) vs. zero into desktop, which sat
+      completely untouched and fell increasingly behind. Desktop's
+      original "direct file storage, no browser fragility" rationale
+      is also weaker now that export/restore/OneDrive sync exist
+      specifically as safety nets for that fragility. **When the user
+      says the word, the actual removal is: delete `/desktop`, drop
+      desktop-specific content from README.md/PROJECT_NOTES.md/TODO.md
+      (parity-gap bullets, the "Desktop app specifics" section, the
+      Electron-related decisions here), and stop referring to "both
+      apps" throughout — don't do any of that preemptively before
+      being asked.**
 - [x] Sync architecture — **finalized (see PROJECT_NOTES.md for full detail):**
       - Your desktop (Electron): point "Change folder…" at your existing
         OneDrive-synced folder — no new code, works today
@@ -152,14 +159,6 @@ _Since then (user confirmed the above batch tested and working, most of it kept 
       actually existed in this repo — confirmed via full git history —
       so there's no separate tested copy to point to, just the
       hand-written version in the app itself. See PROJECT_NOTES.md.)
-- [x] Work order number collision fix: `resolveOrderNumberCollisions()`
-      runs right after every `mergeEntries()` call (regular sync +
-      restore-from-backup) to deterministically fix `orderNumber`
-      collisions caused by two devices independently creating new
-      entries while offline from each other — see PROJECT_NOTES.md
-      Sync plan for the full mechanism. **PWA only for now — desktop
-      has no sync yet, so this hasn't been an issue there, but the same
-      logic needs to go in whenever desktop OneDrive sync gets built.**
 - [x] Deletion sync: tombstone-based (`deleted:true` + `updatedAt`), not a
       hard delete — competes against edits on the same newer-wins logic
 - [x] UI: "last synced" / "not signed in" / "syncing" / error indicator
@@ -309,11 +308,30 @@ since confirmed tested/working. Also verified for syntax only
       form: confirm tapping the header collapses/expands just that
       section, all three start expanded on open, and collapsing one
       doesn't affect data entry/saving in any of them
-- [ ] Work order number collision fix: hard to trigger for real
-      (needs two devices creating new entries while genuinely offline
-      from each other), so this one's more "watch for it" than
-      actively testable — if a duplicate work order number is ever
-      spotted after a sync, that's the bug this was meant to fix
+- [x] Work order number: **removed entirely** (field, card badge,
+      backfill migration, and the collision-resolution fix, from both
+      apps) — turned out to serve no function (not used in search,
+      sort, filter, or export), and the collision fix triggered once
+      on real data, silently renumbering an unrelated older entry
+      mid-edit, which is what surfaced the "why did this number
+      change" question in the first place. Confirmed with the user
+      before removing. Nothing to test here going forward — noted for
+      history, not an open item.
+- [ ] Header "Reconnect OneDrive" button: let a real session lapse
+      (~24h+ since last sync) without touching the app, confirm the
+      button appears next to the settings gear, and tapping it
+      reconnects without needing to retype credentials. Also confirm
+      it stays hidden on a device that's never connected, and hidden
+      right after an intentional Disconnect from Settings (shouldn't
+      nag either time)
+- [ ] Header now icon-only (wordmark dropped) — confirm the layout
+      looks right with Install + Reconnect + Settings gear all visible
+      at once (the crowded case this was meant to fix), and that the
+      icon is still comfortably tappable
+- [ ] Tap the header icon, confirm the lightbox shows the icon, the
+      "BENCH NOTES" title, and the appreciation note, all readable and
+      reasonably positioned on an actual phone screen (only checked in
+      code/CSS, not rendered yet)
 
 ## Candidates for removal — outdated code, not removed yet
 Deliberately kept rather than deleted outright — noted here so it gets
