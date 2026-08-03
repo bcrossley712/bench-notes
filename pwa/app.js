@@ -266,7 +266,15 @@ async function initMsal(){
     if(accounts.length > 0) msalInstance.setActiveAccount(accounts[0]);
   }
 
-  if(isSignedIn()) localStorage.setItem(ONEDRIVE_EVER_CONNECTED_KEY, 'true');
+  // isSignedIn() alone under-detects: a device that was already
+  // disconnected the first time this flag-setting code ever ran would
+  // never get the chance to observe isSignedIn()===true and set it. Sync
+  // history (SYNC_LAST_KEY) is equally good evidence of a prior real
+  // connection and, unlike isSignedIn(), doesn't require being signed in
+  // *right now* to prove it happened before.
+  if(isSignedIn() || localStorage.getItem(SYNC_LAST_KEY)){
+    localStorage.setItem(ONEDRIVE_EVER_CONNECTED_KEY, 'true');
+  }
 
   updateSyncBarForState();
   if(isSignedIn()){
@@ -1101,9 +1109,15 @@ const CATEGORY_CHECKLIST_EXTRAS = {
   'generator': [],
   'pressure washer': []
 };
+// Categories in this map define their ENTIRE visible checklist explicitly
+// — CHECKLIST_BASE doesn't apply, since these categories have no
+// combustion engine at all (no spark plug, fuel tank, oil, etc. to check).
+const CATEGORY_CHECKLIST_FULL = {
+  'electric': ['cleanDeck','bladeSharpening']
+};
 const EQUIPMENT_CATEGORY_OPTIONS = [
   'Walk-Behind Mower', 'Riding Mower / Zero-Turn', 'Chainsaw', 'String Trimmer',
-  'Blower', 'Hedge Trimmer', 'Tiller', 'Generator', 'Pressure Washer'
+  'Blower', 'Hedge Trimmer', 'Tiller', 'Generator', 'Pressure Washer', 'Electric'
 ];
 
 // Returns which checklist keys should be rendered right now. Never affects
@@ -1113,6 +1127,7 @@ const EQUIPMENT_CATEGORY_OPTIONS = [
 function getVisibleChecklistKeys(showAll, category){
   if(showAll) return CHECKLIST_ITEMS.map(([k])=>k);
   const cat = (category||'').trim().toLowerCase();
+  if(CATEGORY_CHECKLIST_FULL[cat]) return CATEGORY_CHECKLIST_FULL[cat];
   const extras = CATEGORY_CHECKLIST_EXTRAS[cat];
   if(cat === '' || extras === undefined) return CHECKLIST_ITEMS.map(([k])=>k); // blank/unrecognized -> show everything
   return [...CHECKLIST_BASE, ...extras];
