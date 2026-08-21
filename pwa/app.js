@@ -1341,6 +1341,7 @@ document.getElementById('hiddenWaiverLibraryInput').addEventListener('change', h
 function openWaiverSign(){
   const scrollEl = document.getElementById('waiverTextScroll');
   scrollEl.textContent = buildWaiverText(CURRENT_WAIVER_VERSION, readLiveEntryFieldsForWaiver());
+  scrollEl.scrollTop = 0;
   document.getElementById('f_waiverAgree').checked = false;
   document.getElementById('f_waiverSignerName').value = '';
   document.getElementById('waiverSignBtn').disabled = true;
