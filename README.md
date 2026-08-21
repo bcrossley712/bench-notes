@@ -27,11 +27,16 @@ that shared contract easy to see and hard to accidentally drift apart.
 
 ## Status
 
-- [x] Desktop app — built, photo support added, not yet tested on real hardware
-- [x] Mobile PWA — built, camera capture + offline support, not yet deployed/tested
+- [x] Desktop app — built, not yet feature-tested on real hardware; no
+      further desktop work planned for now (may be removed — see
+      PROJECT_NOTES.md)
+- [x] Mobile PWA — built, deployed, and in real use (camera capture,
+      offline support, OneDrive sync); offline/airplane-mode test and an
+      iPhone test with a second user are the remaining open items
 - [x] Customer info fields (name, phone, equipment/serial, date received,
       customer request) added to both apps identically
-- [ ] Sync between devices (planned: OneDrive-based, see each app's README)
+- [x] OneDrive sync (PWA) — built and tested
+- [ ] OneDrive sync (Desktop) — not started, on hold with desktop work generally
 
 ## Repo structure
 

@@ -2,783 +2,460 @@
 
 Read this first if you're picking this project up in a new chat. It's
 context for you (the next Claude), not end-user documentation — that
-lives in the README files.
+lives in the README files. This file describes *current state and why
+things are built the way they are*, not a session-by-session history —
+that belongs in git commits. If this file starts creeping back up in
+size, trim it rather than let it compound.
 
 ## Usage-efficiency expectations for Claude
 
-- **Assume the code in this conversation is current** unless I say otherwise. Don't re-pull the full
-  repo/tarball if it's already been fetched this session — re-fetch only when I tell you something
-  changed outside our conversation, or at the very start of a new session.
-- **Pull or view only what the task touches.** Grep for the specific function/selector/section first,
-  then view a targeted range — don't read whole files (or the whole repo) to make a small, well-scoped
-  change.
-- **Match verification effort to the change.** Only run a test suite (or extend it) when a change
-  touches actual logic. Skip it for CSS, copy, layout, or other changes it can't meaningfully verify.
-- **Don't build throwaway tooling** (scratch repro files, sandboxes, etc.) to double-check something
-  reasoning from the code and docs can already answer — only build a repro when there's a real, otherwise
-  unresolvable uncertainty.
-- **Keep the project notes file itself lean.** Record current state and the *why* behind decisions, not a
-  session-by-session diary of how each bug was found and fixed — that history belongs in git commits, not
-  here. If this file starts creeping back up in size, trim it rather than let it compound.
-- **Deliver only the files that actually changed**, not a full re-zip of the project.
-- **Check in before packaging/shipping** — confirm the plan or show the diff before finalizing files,
-  even for a single-file change, unless I've clearly told you to just go ahead.
-- **Batch related changes** into one pass rather than iterating file-by-file across separate turns when
-  the scope is already clear.
+- **Assume the code in this conversation is current** unless told
+  otherwise. Don't re-pull the repo if it's already been fetched this
+  session — re-fetch only when told something changed outside the
+  conversation, or at the start of a new session.
+- **Pull or view only what the task touches.** Grep for the specific
+  function/selector/section, then view a targeted range — don't read
+  whole files to make a small, well-scoped change.
+- **Match verification effort to the change.** Only run/extend a test
+  suite when a change touches actual logic; skip it for CSS, copy, or
+  layout changes.
+- **Don't build throwaway tooling** to double-check something reasoning
+  from the code and docs can already answer.
+- **Deliver only the files that actually changed**, not a full re-zip.
+- **Check in before packaging/shipping** — confirm the plan or show the
+  diff before finalizing files, even for a single-file change, unless
+  clearly told to just go ahead.
+- **Batch related changes** into one pass rather than iterating
+  file-by-file across turns once scope is clear.
 
 ## Working agreements with this user
 
-- **DO NO FURTHER WORK ON DESKTOP until the user explicitly asks for
-  it.** User's stated intention (as of this note) is to remove
-  `/desktop` entirely — not ready to pull the trigger yet, but no new
-  features, parity fixes, or bug fixes should go into desktop in the
-  meantime. This supersedes the "check desktop/PWA parity on every
-  change" rule below for as long as it's in effect: noting a parity
-  gap exists in passing is fine, proposing or starting to close it on
-  desktop is not. See TODO.md "Decisions to make" for the full
-  context and what actual removal will involve when requested.
-- **Confirm before starting new builds/changes** — don't just proceed
-  on a big feature without checking scope/direction first, especially
-  when there's real ambiguity in how to design something. This has
-  actually been violated once: asked which of three signing approaches
-  fit the waiver feature, got an answer, then jumped straight to
-  building the entire thing — placement, flow, printing, all of it —
-  without laying any of that out for confirmation first. The user
-  pushed back explicitly and asked to "sandbox" it as a conversation
-  instead. Answering a scoping question is not the same as having
-  agreed to a build — placement, flow, and UI mechanics are their own
-  decisions and need their own confirmation, even after intent is clear.
-- **Confirm before packaging/sending files** — and when sending, only
-  include the files actually touched by the change, not the whole
-  repo. The user uses their own "download all" zip option when they
-  want everything.
-- **When packaging, include only files changed since the *last actual
-  delivery* to the user** — i.e. since files were last handed over via
-  download, not since the last git push (those are two different
-  events; a file can be delivered for local testing well before it's
-  pushed). Don't re-include a file that was already delivered and
-  hasn't changed since. Don't drop a file that changed but was never
-  actually delivered (e.g. packaging got deferred a few turns back) —
-  it's still owed. Tracking what's been delivered vs. pushed is the
-  user's own responsibility, not something to log here.
-- User's local path: `C:\source\bench-notes` — the repo root.
-- User is comfortable with Node/npm tooling; explanations can assume
-  that baseline rather than over-explaining basic terminal usage.
-- Preference for validating code (syntax checks, etc.) before handing
-  it off, and being upfront about anything that couldn't be verified
-  in a sandboxed environment (e.g. Electron's actual GUI, real device
-  camera/install behavior).
-- **Check desktop/PWA parity on every change, and say so either way —
-  currently suspended for desktop, see the halt directive at the top
-  of this section.** Before finalizing a change to one app, explicitly
-  check whether the other app needs the same fix/feature, and state
-  the conclusion — "no desktop equivalent needed, since desktop
-  doesn't have OneDrive sync yet" is a fine answer, silently not
-  mentioning it isn't. Shared *data format* parity (add a field to one
-  app, add it to both — see "Key architectural decisions" above) is a
-  separate, narrower rule from this one: most *behavioral* changes
-  (sync frequency, photo compression, restore/import) only apply to
-  whichever app actually has that feature built, which today is
-  PWA-only for all three.
+- **DO NO FURTHER WORK ON DESKTOP until explicitly asked.** Stated
+  intention is to remove `/desktop` entirely — not pulled the trigger
+  yet, but no new features, parity fixes, or bug fixes in the meantime.
+  Noting a parity gap in passing is fine; proposing or starting to close
+  one on desktop is not. When the word is given, actual removal is:
+  delete `/desktop`, drop desktop-specific content from README.md/
+  PROJECT_NOTES.md/TODO.md, and stop referring to "both apps." Don't do
+  any of that preemptively.
+- **Confirm before starting new builds/changes**, especially with real
+  design ambiguity — answering a scoping question isn't the same as
+  agreeing to a build. Placement, flow, and UI mechanics need their own
+  confirmation even after intent is clear.
+- **Confirm before packaging/sending files.** Include only files touched
+  by the change, not the whole repo — the user has their own "download
+  all" option for that.
+- **Track delivery, not push, when deciding what to include.** Only send
+  files changed since they were last actually handed over for download —
+  a file can be delivered for local testing before it's pushed to git.
+  Don't re-send an unchanged delivered file; don't drop a changed file
+  that was never actually delivered.
+- User's local path: `C:\source\bench-notes`. Comfortable with Node/npm —
+  explanations can assume that baseline.
+- Validate code (syntax checks, etc.) before handing it off, and be
+  upfront about what can't be verified in a sandbox (Electron's actual
+  GUI, real device camera/install behavior).
+- **Check desktop/PWA parity on every change and say so either way** —
+  currently moot for desktop given the halt above. Shared *data format*
+  parity (add a field to one app, add it to both, once desktop is live
+  again) is separate from *behavioral* parity (sync frequency, photo
+  compression, etc.), which today only applies to whichever app actually
+  has that feature — currently PWA-only across the board.
 
 ## What this is
 
-A troubleshooting/work-order log for a small engine repair shop, built
-so the owner's son can capture 40+ years of his dad's diagnostic
-knowledge before his dad retires, and keep building on it afterward.
-Two apps, one shared entry format:
-
-**On scope:** this started as a pure knowledge log (symptom → cause →
-fix, for future reference) and has grown real active work-order
-tracking on top of that (customer intake, and now repair status —
-Needs Diagnosis / Waiting on Quote / Waiting on Parts / In Progress / Complete — see PWA
-specifics below). That's a deliberate direction, not scope creep to
-walk back: the knowledge-capture core hasn't gone anywhere, entries
-still work fine with just a symptom/cause/fix and nothing else filled
-in, but the app also now earns its keep as the thing actually tracking
-what's on the bench. Worth remembering if a future change seems to
-"belong" in a different, more focused app — it doesn't; this is one
+A troubleshooting/work-order log for a small engine repair shop, built so
+the owner's son can capture 40+ years of his dad's diagnostic knowledge
+before his dad retires, and keep building on it afterward. It's
+deliberately both a knowledge log (symptom → cause → fix) *and* active
+work-order tracking (customer intake, repair status through completion)
+in one app — not scope creep to walk back. Entries still work with just a
+symptom/cause/fix and nothing else filled in; a future change that seems
+to "belong" in a separate, more focused app usually doesn't — this is one
 app doing both jobs on purpose.
 
-- **`/desktop`** — Electron app, Windows, primary editing tool at the
-  bench. Direct file storage (no browser storage fragility).
-- **`/pwa`** — installed web app (Android + iPhone), deployed via
-  GitHub Pages + GitHub Actions. Offline-capable, camera capture for
-  photos. Built because the son is on Android and his dad is on
-  iPhone — a PWA covers both from one codebase without needing a Mac/
-  Xcode for a native iOS build.
+- **`/desktop`** — Electron app, Windows. Direct file storage. **Halted**,
+  likely future removal — see "Working agreements."
+- **`/pwa`** — installed web app (Android + iPhone), deployed via GitHub
+  Pages + GitHub Actions. Offline-capable, camera capture. Built as a PWA
+  (not Capacitor/native) because the son is on Android and his dad is on
+  iPhone — one codebase covers both without a Mac/Xcode for iOS.
 
 See the root `README.md` for repo structure and deployment steps, and
-`TODO.md` for the live task list (what's tested, what's not, open
-decisions). This file is about *why things are built the way they
-are*, so you don't accidentally re-litigate settled decisions.
+`TODO.md` for the live, open-only task list.
 
-## Key architectural decisions (and why)
+## Key architectural decisions
 
 - **One repo, not two.** The two apps share an entry data format on
-  purpose — keeping them in one repo makes that shared contract easy
-  to see and hard to accidentally drift apart.
-- **PWA, not Capacitor/native.** Originally planned as a Capacitor
-  Android app. Switched to a PWA once GitHub Pages hosting + an iPhone
-  for Dad were both confirmed — a PWA works on both platforms from one
-  codebase and needs no Mac/Xcode for iOS.
-- **GitHub Actions deploy, not the `/docs`-folder zero-config route.**
-  Deliberate choice so folder names could stay sensible (`pwa`,
-  `desktop`) instead of a permanently confusing "docs" label.
-- **Sync plan — PWA side built, desktop side not started.** OneDrive-based.
-  - The owner's own desktop is already OneDrive-synced → can just
-    point the app's "Change folder…" at that local folder, no API
-    needed.
-  - The shop laptop and the phone PWA both need real OneDrive **API**
-    sync (Microsoft Graph) — no local synced folder available to them.
-    **PWA is built. Desktop is not started** — desktop needs the
-    device-code flow instead of a browser redirect, genuinely
-    different code, not just a port of the PWA's.
-  - **Considered and rejected: a custom backend** (e.g. Cloudflare
-    Worker + D1/R2, which the user could host for free on their
-    existing Cloudflare domain). Rejected specifically because the
-    user has lost data before when apps depended on a backend that
-    later became unreachable — a plain file sitting in the user's own
-    OneDrive survives even if this app's code breaks entirely; a
-    database behind a Worker doesn't offer that same guarantee.
-  - **Auth: direct Microsoft OAuth (MSAL), not Auth0.** No third-party
-    identity broker or custom backend needed — Microsoft Graph API
-    requires signing in with Microsoft's own identity platform
-    regardless, so that's used directly. Scope requested:
-    `Files.ReadWrite.AppFolder` (narrow — only sees a hidden
-    `Apps/Bench Notes` OneDrive folder, not the whole drive) +
-    `offline_access` (token refresh).
-  - **MSAL library is vendored, not CDN-loaded.** Microsoft deprecated
-    the MSAL CDN as of `@azure/msal-browser@3.0`, so the actual npm
-    package's browser bundle is committed directly at
-    `pwa/vendor/msal-browser.min.js` (loaded via a plain `<script>`
-    tag, exposes a global `msal` namespace — `msal.createStandard-
-    PublicClientApplication(...)`). Keeps the zero-build-step
-    architecture intact; if MSAL ever needs upgrading, re-run
-    `npm install @azure/msal-browser` somewhere and copy
-    `node_modules/@azure/msal-browser/lib/msal-browser.min.js` over
-    the vendored copy.
-  - **Azure app registration done.** Personal-Microsoft-account app
-    registration, name "Bench Notes", Client ID
-    `a224822b-7b19-40b9-b504-8596a2add3be`. SPA platform redirect URI
-    `https://bcrossley712.github.io/bench-notes/` (confirm this
-    matches your actual GitHub Pages URL if the repo/username ever
-    changes) + native/mobile platform redirect for the future desktop
-    device-code flow, "Allow public client flows" = Yes,
-    `Files.ReadWrite.AppFolder` + `offline_access` delegated
-    permissions granted. Authority used in code: `https://login.
-    microsoftonline.com/consumers` (correct authority for a
-    Personal-Microsoft-accounts-only app registration — `common` or
-    `organizations` would be wrong here).
-  - **One shared Microsoft account, not one-per-person.** The owner's
-    own personal Microsoft account is what gets signed into on *all*
-    devices, including Dad's — not Dad's own account. This is
-    deliberate: two separate personal accounts would produce two
-    separate App Folders with no shared file, breaking the merge
-    model below. A single shared account sidesteps needing OneDrive
-    folder-sharing permissions across two identities.
-  - **Local-first is a hard requirement, not just an implementation
-    detail.** Every core action (create/edit entries, checklist,
-    photos) works fully offline on whichever device it's on, signed
-    in or not. OneDrive sync is a background add-on layered on top,
-    never something the app depends on to function. The PWA header
-    shows a "last synced" / "not signed in" / "syncing" / error
-    indicator (`syncBar` in `pwa/app.js`) so sync state is never
-    ambiguous; tapping it when signed in offers to disconnect that
-    device.
-  - **Reconciliation — built and unit-tested.** Pull-then-merge-then-
-    push, every sync, in that order. Merge is a **union by entry
-    `id`** (never a whole-file overwrite) — an entry present on only
-    one device survives the merge either way. Every entry now stamps
-    `updatedAt` on create/edit (added this build — see
-    `saveEntry()`/`setCoverPhoto()` in both apps). A true same-entry
-    conflict (both devices edited the *same* entry since their last
-    common sync) never silently picks a winner — the older version is
-    kept as a new entry titled "… (⚠ sync conflict copy)" with a
-    `conflictOf` field pointing at the surviving one, so nothing is
-    silently discarded.
-  - **`orderNumber` — built, then removed entirely.** Previously a
-    permanent per-entry work-order number shown as a badge on the
-    card corner. Turned out to be purely cosmetic — not used in
-    search, sort, filter, or export in either app — and its only
-    other code was the machinery that existed solely to keep that
-    display number consistent (a backfill migration, and a
-    collision-resolution pass added specifically to fix numbers that
-    could collide when two devices created new entries while offline
-    from each other). That collision fix triggered once on the user's
-    real data and silently renumbered an older entry mid-edit,
-    surfacing as "why did my work order number change when I only
-    edited the entry" — confusing given the user never used the
-    number for anything. Confirmed with the user it served no
-    function, then removed entirely: the field, the card badge, the
-    backfill migration (`ensureOrderNumbers`), and the collision
-    resolver (`resolveOrderNumberCollisions`) — from both apps. **If a
-    "work order number" is ever wanted again, don't just restore
-    this** — it was genuinely a source of confusing behavior for no
-    practical benefit; think about whether it's actually needed for
-    something (e.g. paper labeling) before rebuilding the same
-    plumbing.
-  - **Deletion is a tombstone, not a removal — built.** `deleteEntry()`
-    in both apps sets `deleted: true` + bumps `updatedAt` instead of
-    removing the record. The delete competes against edits on the
-    same "newer timestamp wins" logic as any other conflict: delete an
-    entry and it disappears everywhere on next sync, unless the other
-    device edited that same entry more recently than the delete
-    happened, in which case the edit wins and the entry survives.
-    Desktop keeps tombstones in its `entries[]` array (it's serialized
-    wholesale to disk, so removing them from the array would lose them
-    on the next save) — visibility is filtered out entirely at
-    `matchesFilters()` instead of at load. PWA filters tombstones out
-    at `loadEntries()` since IndexedDB is written per-record, not as
-    one blob, so the tombstone stays safely in IndexedDB either way.
-  - **`sync-build/mergeEntries.js` reference copy — never actually
-    built, confirmed.** An earlier session's notes described a
-    standalone, unit-tested `sync-build/mergeEntries.js` +
-    `sync-build/mergeEntries.test.js` (10 scenarios: new-entry-each-
-    side, no-op merge, one-sided edits, real conflicts, delete-vs-edit
-    ordering, both-sides-delete) as the canonical, tested-in-Node
-    reference the app's merge logic should be copied from/verified
-    against. **Checked full git history (`git log --all -- sync-build/`)
-    — it has never existed in this repo at any commit.** Best read:
-    that earlier session built and tested it in its own temporary
-    sandbox, wrote the notes as if it were a permanent part of the
-    repo, but never actually delivered/committed the files — the
-    documentation got ahead of what was actually handed over. The only
-    real risk this caused is trusting a safety net that wasn't there;
-    it never affected the app itself, since the merge logic that
-    actually runs is the hand-written version live in `pwa/app.js`,
-    exercised by real syncing. If a standalone, tested reference copy
-    like this is wanted going forward, it needs to be built fresh —
-    don't assume it exists or try to "restore" it from anywhere.
-  - **Photo sync — built.** Individual files in a `photos/` subfolder
-    inside the App Folder (mirrors how desktop already stores things
-    locally: JSON + photos folder), not embedded in the entries JSON —
-    keeps sync incremental (only new/changed photos transfer) and
-    avoids the entries file growing unbounded. Runs after entries have
-    merged, using the final merged `photos[]` references to decide
-    what to upload (referenced + local + not yet remote), download
-    (referenced + remote + not yet local), and delete remotely
-    (present remotely but no longer referenced by any surviving
-    entry — this is how a tombstoned entry's old photos get cleaned
-    up). Simple upload for anything ≤4MB (Graph's ceiling), automatic
-    chunked "upload session" for anything larger.
-  - **Photo compression — built.** Every photo gets resized to max
-    1600px on its longest side and re-encoded as JPEG quality 0.82 at
-    capture time (`compressImage()` in `pwa/app.js`), before it's
-    ever written to IndexedDB — benefits local storage as much as sync
-    bandwidth. Applies identically whether the photo came from the
-    camera or the library picker (both inputs share the same
-    `handlePhotoFiles()` handler).
-  - **429 (throttling) handling — built.** `graphFetch()` wraps every
-    Graph API call; on a 429 it waits for the server's `Retry-After`
-    delay and retries once. Realistically far below anything Graph
-    would ever throttle at this app's request volume (personal 2-user
-    usage vs. Graph's ~2000 req/sec ceiling), but cheap correctness to
-    have in place regardless.
-  - **OneDrive free-tier storage (5GB) isn't a concern here** — the
-    user has a 1TB Microsoft 365 plan on the account being used.
-    Deliberately did not build a storage-quota warning (asked about,
-    declined as unnecessary).
-  - Sync trigger points: on app open, after every save/delete, after
-    restore, and via the manual "Sync now" button (`initMsal()`/
-    `saveEntry()`/`deleteEntry()`/`handleRestoreFile()` in
-    `pwa/app.js`). The every-5-minute periodic background timer that
-    used to also trigger sync was deliberately removed — unnecessary
-    network/battery overhead for a 2-device, low-concurrency shop
-    setup where the other event-driven triggers already cover it.
-  - **First real-world test found a real bug — fixed.** The redirect
-    URI was originally computed dynamically from `window.location.
-    pathname`. That matched Azure's registered value when typed
-    directly into a browser tab, but not when launched from the
-    installed home-screen icon — the manifest's `start_url` is
-    `./index.html`, which resolves to a different URL than the bare
-    folder URL registered in Azure, causing an `invalid_request:
-    redirect_uri` error specifically from the installed-icon launch
-    path. **Fixed** by hardcoding `redirectUri` to the exact registered
-    string (`https://bcrossley712.github.io/bench-notes/`) instead of
-    deriving it from wherever the page happened to load. Confirmed
-    working from a regular browser tab; **launching from the actual
-    home-screen icon still needs to be tried** to fully confirm the fix
-    (a browser-tab test doesn't exercise the code path that broke).
-  - **Restore/import — built**, alongside export. Reuses the exact
-    same merge-by-id logic as OneDrive sync — restoring from a backup
-    file never blindly overwrites what's already on the device; same
-    conflict-duplicate handling as a normal sync. Lives in the
-    Settings panel (see below), not the main UI.
-  - **Settings panel — built.** A gear icon in the header (with a
-    small colored status dot mirroring sync state — green/orange/
-    red/gray — so sync problems stay visible without opening
-    anything) replaced the old always-visible Export button and sync
-    bar, after the user pushed back on those being too prominent for
-    how rarely they're used. Panel has three sections: **OneDrive
-    Sync** (status + connect/sync/disconnect), **Backup** (export/
-    restore), **Danger Zone** (clear local data).
-  - **Clear local data — built**, with real friction against an
-    accidental tap: a warning step (nudges toward exporting first),
-    then a typed-confirmation step (`showTypedConfirm()` — confirm
-    button stays disabled until the exact word "DELETE" is typed).
-    PWA-only for now — clears IndexedDB (`entries` + `photos` stores)
-    and the local sync baseline. Desktop doesn't have an equivalent
-    yet (no sync/backup built there yet to need one).
-  - **Not yet tested against a real Microsoft account/browser.** Merge
-    logic and photo-compression logic are unit-tested; the actual
-    OAuth handshake, live Graph API calls, and redirect behavior have
-    only been partially tried (see the redirect URI bug above) — full
-    confirmation, including from the installed home-screen icon, is
-    still the next real-world test.
-  - **Desktop OneDrive sync — not started.** Needs MSAL Node (or an
-    equivalent device-code flow: show a code, user enters it at
-    microsoft.com/link, poll for token) since Electron can't use an
-    embedded login window. The merge/photo-sync logic itself should
-    be portable from the PWA almost as-is once auth is wired up.
-
-  - **Both apps use the exact same entry field names, deliberately** —
-  not just a similar shape, but identical field
-  names so a future sync layer doesn't have to translate between two
-  formats. Current entry fields (refreshed this session — this list
-  had drifted out of date even before this session's changes, missing
-  `status`/`completedAt` entirely):
-  `title` (UI-labeled "Diagnosis" in the PWA, was "The Cause" — see
-  PWA specifics — field name unchanged), `primaryComplaint` (PWA-only,
-  added this session — see PWA specifics), `engineBrand`, `engineModel`, `engineCode`,
-  `source`, `causes`, `steps`, `fix`, `partsUsed` (UI-labeled "Parts"
-  in the PWA), `notes`, `photos[]`, `customerName`, `customerPhone`,
-  `equipmentBrand`, `equipmentModel`, `equipmentSerial`,
-  `equipmentCategory` (PWA-only so far — see PWA specifics),
-  `dateReceived`, `customerRequest`, `checklist` (object keyed by item
-  id, e.g. `sparkTest: {checked, note}` — see `CHECKLIST_ITEMS` in each
-  app for the current 12 items; was 13 before Fuel Additive was
-  removed this session), `showAllFields` (PWA-only, see PWA specifics),
-  `status` (one of `needs-diagnosis` / `waiting-quote` / `waiting-
-  parts` / `in-progress` / `complete`, PWA-only, see PWA specifics),
-  `completedAt` (timestamp, PWA-only, see PWA specifics),
-  `waiver` (PWA-only, object or null — see PWA specifics for the full
-  shape and feature),
-  `completed`, `createdAt`, `updatedAt` (stamped on every
-  create/edit; required by the sync merge logic), `dateAdded`.
-  Two more fields exist but are conditional/rare, not part of the
-  normal shape: `deleted` (tombstone flag, set by `deleteEntry()`,
-  see Sync plan above) and `conflictOf` (only present on a sync
-  conflict's duplicate copy, points at the id of the entry that won
-  the conflict). If you add a field to one app, add it to the other at
-  the same time — `equipmentCategory`/`equipmentBrand`/`engineBrand`/
-  `showAllFields`/`waiting-quote`/`primaryComplaint`/`waiver` are current
-  PWA-only gaps, added across recent sessions, not yet ported to
-  desktop — though see the desktop halt directive in "Working
-  agreements" above before treating any of these as something to
-  actively close right now.
-- **Photo order is meaningful.** `photos[0]` is always the cover/
-  thumbnail — both apps rely on this convention instead of a separate
-  "cover photo" field, so reordering the array (not adding a new field)
-  is how a cover photo gets changed.
-- **Intake workflow:** an entry can be saved with just customer info
-  (no title required) — matches real shop workflow where the customer
-  drops off equipment before any diagnosis has happened. A "Needs
-  Diagnosis" badge/filter surfaces these automatically (computed, not
-  a stored flag) until a title/causes/steps/fix gets filled in, or the
-  entry is marked complete.
+  purpose — one repo keeps that shared contract visible and hard to
+  accidentally drift apart.
+- **GitHub Actions deploy**, not the `/docs`-folder zero-config route —
+  so folder names can stay sensible (`pwa`, `desktop`).
+- **No custom backend** (considered and rejected: e.g. Cloudflare Worker
+  + D1/R2). The user has lost data before to backends that became
+  unreachable — a plain file in the user's own OneDrive survives even if
+  this app's code breaks entirely; a database behind a Worker doesn't.
+- **Sync — OneDrive-based, PWA built and tested, desktop not started.**
+  - Owner's own desktop: point Electron's "Change folder…" at an
+    already-OneDrive-synced local folder — no API needed, works today.
+  - Shop laptop + phone (PWA): real OneDrive **API** sync via Microsoft
+    Graph — no local synced folder available to them.
+  - **Auth: direct Microsoft OAuth (MSAL), not Auth0** — Graph API
+    requires Microsoft's own identity platform regardless. Scope:
+    `Files.ReadWrite.AppFolder` (only sees a hidden `Apps/Bench Notes`
+    folder, not the whole drive) + `offline_access`.
+  - MSAL is **vendored**, not CDN-loaded (Microsoft dropped the MSAL CDN
+    as of `@azure/msal-browser@3.0`) — committed at
+    `pwa/vendor/msal-browser.min.js`. To upgrade: `npm install
+    @azure/msal-browser` elsewhere, copy
+    `node_modules/@azure/msal-browser/lib/msal-browser.min.js` over it.
+  - Azure app registration: personal-Microsoft-account app "Bench Notes",
+    Client ID `a224822b-7b19-40b9-b504-8596a2add3be`. SPA redirect URI
+    `https://bcrossley712.github.io/bench-notes/` (confirm this still
+    matches if the repo/username ever changes) + a native/mobile redirect
+    for a future desktop device-code flow. Authority in code:
+    `https://login.microsoftonline.com/consumers` (correct for a
+    personal-accounts-only registration — `common`/`organizations` would
+    be wrong).
+  - **One shared Microsoft account**, not one-per-person — the owner's
+    own account is signed into on *all* devices, including Dad's. Two
+    separate accounts would produce two separate App Folders with no
+    shared file, breaking the merge model.
+  - **Local-first is a hard requirement.** Every core action works fully
+    offline, signed in or not. Sync is a background add-on layered on
+    top, never a dependency. PWA header shows a sync-state indicator
+    (`syncBar` in `pwa/app.js`).
+  - **Reconciliation:** pull → merge → push, every sync. Merge is a
+    **union by entry `id`** (never a whole-file overwrite) — an entry on
+    only one device survives either way. Every entry stamps `updatedAt`
+    on create/edit. A true same-entry conflict (both devices edited it
+    since their last common sync) never silently picks a winner — the
+    older version is kept as a new entry titled "… (⚠ sync conflict
+    copy)" with a `conflictOf` field, so nothing is silently discarded.
+  - **Deletion is a tombstone**, not a removal — `deleteEntry()` sets
+    `deleted: true` + bumps `updatedAt`. Competes against edits on the
+    same newer-timestamp-wins logic as any other conflict. Desktop keeps
+    tombstones in its `entries[]` array (serialized wholesale to disk)
+    and filters them at render (`matchesFilters()`); PWA filters them at
+    `loadEntries()` since IndexedDB is per-record.
+  - **Photo sync:** individual files in a `photos/` App Folder subfolder
+    (mirrors desktop's local JSON + photos-folder layout), not embedded
+    in the entries JSON — keeps sync incremental and the entries file
+    from growing unbounded. Chunked upload above Graph's 4MB simple-
+    upload ceiling; 429/throttling handled via `Retry-After` + one retry
+    (cheap correctness even though real usage is far below Graph's
+    ceiling).
+  - Sync triggers: on app open, after every save/delete, after restore,
+    and the manual "Sync now" button. No periodic background timer —
+    removed as unnecessary overhead for a 2-device, low-concurrency shop.
+  - **Desktop OneDrive sync is not started.** Needs MSAL Node or an
+    equivalent device-code flow (Electron can't use an embedded login
+    window). Merge/photo-sync logic should port from the PWA almost
+    as-is once auth is wired up.
+  - OneDrive free-tier storage isn't a concern — the account in use has a
+    1TB Microsoft 365 plan; no storage-quota warning was built
+    (considered, declined as unnecessary).
+- **`sync-build/mergeEntries.js`, a standalone unit-tested merge
+  reference, has never existed in this repo** (checked full git history)
+  despite being described in earlier notes as if it were permanent. The
+  merge logic that actually runs is the hand-written version live in
+  `pwa/app.js`, exercised by real syncing. If a standalone tested
+  reference copy is wanted, it needs to be built fresh, not "restored."
+- **`orderNumber` was built, then removed entirely.** It was purely
+  cosmetic (never used in search/sort/filter/export), and its only other
+  code was machinery to keep the display number consistent across
+  devices — a collision-resolution pass that once silently renumbered an
+  older entry mid-edit. Confirmed with the user it served no function,
+  then removed — field, card badge, backfill migration, and collision
+  resolver — from both apps. If a "work order number" is wanted again,
+  think through whether it's actually needed for something (e.g. paper
+  labeling) before rebuilding the same plumbing.
+- **Entry fields, both apps, identical names on purpose** (so a sync
+  layer never has to translate): `title` (UI-labeled "Diagnosis" in the
+  PWA), `primaryComplaint` (PWA-only), `engineBrand`, `engineModel`,
+  `engineCode`, `source`, `causes`, `steps`, `fix`, `partsUsed`
+  (UI-labeled "Parts"), `notes`, `photos[]`, `customerName`,
+  `customerPhone`, `equipmentBrand`, `equipmentModel`, `equipmentSerial`,
+  `equipmentCategory` (PWA-only so far), `dateReceived`,
+  `customerRequest`, `checklist` (object keyed by item id, e.g.
+  `sparkTest: {checked, note}` — see `CHECKLIST_ITEMS`, currently 12
+  items), `showAllFields` (PWA-only), `status` (`needs-diagnosis` /
+  `waiting-quote` / `waiting-parts` / `in-progress` / `complete`,
+  PWA-only), `completedAt` (PWA-only), `waiver` (PWA-only, object or
+  null — see "Waiver feature" below), `completed`, `createdAt`,
+  `updatedAt` (required by sync merge), `dateAdded`. Two conditional
+  fields: `deleted` (tombstone flag) and `conflictOf` (only on a sync
+  conflict's duplicate copy). **If you add a field to one app, add it to
+  the other at the same time** — current PWA-only gaps
+  (`equipmentCategory`/`equipmentBrand`/`engineBrand`/`showAllFields`/
+  `waiting-quote`/`primaryComplaint`/`waiver`) aren't things to actively
+  close right now given the desktop halt.
+- **Photo order is meaningful** — `photos[0]` is always the cover/
+  thumbnail; both apps rely on this instead of a separate cover field.
+- **Intake workflow:** an entry can be saved with just customer info, no
+  title required — matches the real shop workflow where equipment
+  arrives before any diagnosis has happened. A "Needs Diagnosis" badge/
+  filter surfaces these automatically (computed, not a stored flag)
+  until a title/causes/steps/fix gets filled in, or it's marked complete.
 - **Custom modal, not native `confirm()`/`alert()`.** Both apps use
-  `showAlert(message)` / `showConfirm(message, opts)` — themed to
-  match the rest of the UI (dark panel, orange top border), return
-  Promises so call sites `await` them. There should be zero native
-  browser `confirm()`/`alert()` calls left in either app; if you're
-  about to add one, use these instead. Same implementation duplicated
-  in both apps (`#modalOverlay`/`#modalMessage`/`#modalActions` in the
-  HTML, functions near the top of each `<script>` block). **PWA only**
-  also has `showTypedConfirm(message, requiredText, opts)` — same
-  pattern, but the confirm button stays disabled until the exact
-  required word is typed. Currently used for "Clear local data" only;
-  reach for it any time an action is destructive enough that a single
-  accidental tap shouldn't be sufficient — desktop doesn't have this yet
-  since it doesn't have a use for it yet either.
+  `showAlert(message)` / `showConfirm(message, opts)` (themed to match
+  the UI, return Promises). There should be zero native browser
+  `confirm()`/`alert()` calls in either app. **PWA only** also has
+  `showTypedConfirm(message, requiredText, opts)` — confirm button stays
+  disabled until the exact word is typed; currently used for "Clear
+  local data" only, and the right tool for any future destructive action
+  that shouldn't be a single accidental tap.
 
 ## Desktop app specifics
 
-- Data + photos stored via Electron's main process (`main.js`), not
-  browser storage — writes to a real JSON file + photos folder in a
-  user-configurable location (defaults to AppData, but "Change
-  folder…" can point it anywhere, including a OneDrive-synced folder).
-- **Tabbed interface** (added in this session): the old popup-modal
-  editor was replaced with full-screen tabs. "Board" is a permanently
-  pinned, uncloseable tab; each opened work order gets its own
-  closable tab. This was a deliberate choice over "Board as just
-  another closable tab" — see conversation history if the reasoning
-  matters, but short version: never wanted the board to be one
-  accidental click away from disappearing.
-- **Known limitation:** photos persist correctly per-tab if you switch
-  away mid-edit and come back, but typed field values (text) do not —
-  switching tabs mid-edit without saving loses in-progress text
-  changes on that tab. Full state-preservation across tabs was
-  deliberately out of scope to avoid further scope creep; flagged
-  clearly to the user, not a bug they're unaware of.
-- **Tab-close confirm** only fires for a brand-new, never-saved entry
-  (`tab.isNew && tab.mode==='edit'`) — closing a tab mid-edit of an
-  *existing* entry still closes silently (same known limitation
-  above; not extended to avoid scope creep).
-- **Service Checklist** (13 fixed items mirroring the paper work order
-  sheet). Checked items render as a read-only preview ("Label - note")
-  above the Fix textarea in the **edit/new-entry form** via
-  `checklistLines()`/`renderChecklistPreview()` — never written into
-  the editable textarea itself, and this part is deliberately staying
-  a visually separate, non-editable element (see the parenthetical
-  below for why). The Fix textarea holds only manually-typed notes.
-  In the **saved/detail view** specifically, checklist lines and
-  manual Fix text render as one continuous flowing block of text, no
-  visual separation between them (changed this session — used to be a
-  bordered/boxed sub-section, the user wanted it to read as one
-  natural section instead). Either way nothing is stored pre-combined
-  — it's composed fresh at render time, so there's no stale block to
-  drift out of sync. Search includes checklist text explicitly since
-  it's no longer riding along inside `entry.fix`.
-  (Earlier version tracked a `checklistFixBlock` string and tried to
-  find-and-replace it in the textarea — fragile, caused duplicate
-  entries in the Fix field when the tracked block didn't exactly match
-  stored text, e.g. after a note with an embedded line break. Fixed
-  in an earlier session; same fix applied to both apps.)
-- App launches cleanly via `npm start`. Feature-level testing (entries,
-  checklist, photos, tab-close confirm, folder change) and the packaged
-  `.exe` install are still outstanding — see `TODO.md` for the exact
-  checklist.
+- Data + photos stored via Electron's main process (`main.js`) — a real
+  JSON file + photos folder in a user-configurable location (defaults to
+  AppData; "Change folder…" can point anywhere, including a
+  OneDrive-synced folder).
+- **Tabbed interface.** "Board" is a permanently pinned, uncloseable tab;
+  each opened work order gets its own closable tab — deliberate, so the
+  board is never one accidental click from disappearing.
+- **Known limitation:** photos persist per-tab across switches, but typed
+  field text does not — switching tabs mid-edit without saving loses
+  in-progress text on that tab. Deliberately out of scope (avoids further
+  scope creep); the user knows about it.
+- **Tab-close confirm** only fires for a brand-new, never-saved entry —
+  closing mid-edit of an *existing* entry closes silently (same known
+  limitation, not extended for the same scope reason).
+- **Service Checklist** (13 fixed items mirroring the paper work order).
+  Checked items render as a read-only preview above the Fix textarea in
+  the edit/new-entry form (`checklistLines()`/`renderChecklistPreview()`)
+  — never written into the editable textarea itself; the Fix textarea
+  holds only manually-typed notes. In the saved/detail view, checklist
+  lines and manual Fix text render as one continuous flowing block.
+  Nothing is stored pre-combined — composed fresh at render time, so
+  there's no stale block to drift out of sync. Search includes checklist
+  text explicitly since it doesn't ride along inside `entry.fix`. (An
+  earlier approach tried find-and-replace on a tracked
+  `checklistFixBlock` string — fragile, caused duplicate Fix entries when
+  the tracked block didn't exactly match stored text. Fixed; same fix
+  applied to both apps.)
+- App launches cleanly via `npm start`. Feature-level testing and the
+  packaged `.exe` install are outstanding — see `TODO.md`.
 
 ## PWA specifics
 
-- **Repair status** (`status` field, added this session): one of
-  `needs-diagnosis` (default) / `waiting-parts` / `in-progress` /
-  `complete`, set via a dropdown in the add/edit sheet, shown as a
-  color-coded badge on board cards and in the detail view, filterable
-  via the status chip row (`getEntryStatus()`/`STATUS_LABELS`/
-  `saveEntry()` in `pwa/app.js`). Replaced the old binary
-  `isNeedsDiagnosis()` heuristic (still used internally as the
-  fallback for entries with no explicit status — see its comment) —
-  don't reintroduce a second, parallel status concept. `completedAt`
-  (timestamp) is stamped the moment status becomes `complete`, and
-  cleared if it moves away from `complete` again, so it never shows a
-  stale completion date on a reopened entry. Deliberately auto-stamped
-  with no date/time field in the normal add/edit form — that's the
-  right default for the common case (you mark it done right when it's
-  actually done), so it shouldn't cost an extra tap every time. For
-  the occasional case of backdating/correcting it (catching up records
-  days later, fixing old entries), there's a separate "Edit completed
-  date/time" pencil-icon button in the detail view (`editCompletedDate()`/
-  `showDateTimePrompt()` in `pwa/app.js`) — deliberately not in the
-  main form, so it doesn't tempt second-guessing an already-accurate
-  auto-stamp during normal use. Completed entries stay on
-  the board by default (nothing auto-hides) — filter to hide them if
-  wanted. **Desktop parity gap — see TODO.md Shared data format**:
-  desktop has neither the field nor the UI for this yet. **`waiting-
-  quote` added this session**, sitting between `needs-diagnosis` and
-  `waiting-parts` — same mechanism as the other four, own badge color
-  (blue) so it's visually distinct.
-- **Equipment category** (`equipmentCategory`, added this session):
-  free-type input with a `<datalist>` of 9 starting options
-  (`EQUIPMENT_CATEGORY_OPTIONS` in `pwa/app.js`: Walk-Behind Mower,
-  Riding Mower / Zero-Turn, Chainsaw, String Trimmer, Blower, Hedge
-  Trimmer, Tiller, Generator, Pressure Washer) — picking from the list
-  or typing something else both work, nothing is forced. Drives which
-  Service Checklist fields are shown (`getVisibleChecklistKeys()`):
-  every category gets a base six (Spark Test, Spark Plug, Compression
-  Test, Fuel Tank, Air Filter, Oil — `CHECKLIST_BASE`), plus
-  category-specific extras (`CATEGORY_CHECKLIST_EXTRAS`) — Walk-Behind
-  Mower adds Clean Deck + Blade Sharpening; Riding Mower/Zero-Turn adds
-  Fuel Filter + Oil Filter + Lube Front End + Tire Pressure + Clean
-  Deck + Blade Sharpening; Chainsaw adds Blade Sharpening; String
-  Trimmer/Blower/Hedge Trimmer/Tiller/Generator/Pressure Washer are
-  base-only. **A blank or unrecognized category always shows every
-  field** — narrowing only happens for a category on this known list,
-  never by default, so a typo or an uncategorized entry never silently
-  hides something needed. A per-entry `showAllFields` toggle overrides
-  the narrowing entirely regardless of category. Checklist data for a
-  currently-hidden field is never lost: `liveChecklistState` in
-  `pwa/app.js` holds every key's `{checked, note}` independent of
-  which rows are currently rendered, so switching category back and
-  forth (or toggling "Show all fields") restores previously-entered
-  values exactly.
-- **Checklist items changed this session** (`CHECKLIST_ITEMS` in
-  `pwa/app.js`, now 12 items, was 13): Fuel Additive removed entirely
-  — the shop recommends it verbally but doesn't track it as a
-  checklist item; old entries' `fuelAdditive` data is untouched, just
-  no longer rendered anywhere. Oil Change relabeled "Oil" so either
-  "checked" or "changed" can go in the note.
-- **Brand fields added this session:** `equipmentBrand` and
-  `engineBrand`, split out from `equipmentModel`/`engineModel` (which
-  used to have the brand typed directly in, e.g. "TORO 20370" in the
-  Model field — now Brand and Model are separate inputs).
-- **`title` relabeled twice since:** first "The Cause" (no schema
-  change), then **"Diagnosis" in a later session** — field name
-  unchanged both times, copy only. It no longer drives the board
-  title (see `primaryComplaint` below); it now shows as the card's
-  preview line instead. `partsUsed` is labeled "Parts" instead of
-  "Parts Used," meant to also hold parts still needed or quoted, not
-  just parts already used.
-- **`primaryComplaint` — new field, added in a later session.** A
-  short, concise summary field in the Customer section (e.g. "won't
-  start"), distinct from the longer freeform `customerRequest`
-  textarea ("what the customer said," which the user pointed out often
-  runs longer than a title should be). Card `<h3>` headline and detail
-  drawer header both now read `primaryComplaint || title ||
-  customerName || 'Untitled entry'` — `title` (Diagnosis) only becomes
-  the headline as a fallback when Primary Complaint is empty.
-  **PWA-only, added this session — see field list above.**
-- **Diagnosis (`title`) was missing from the detail drawer entirely**
-  until a later session fixed it — it was only ever read as a fallback
-  for the header text, so once `primaryComplaint` took the header,
-  Diagnosis effectively vanished from the expanded view (it still
-  showed on the card). Added a dedicated "Diagnosis" detail-section,
-  positioned to match the form's field order: after "Diagnostic Steps,"
-  before "The Fix."
-- **Collapsible form sections, added in a later session:** Customer,
-  Equipment, and Service Checklist section headers in the add/edit
-  sheet are now tappable (chevron indicator, `toggleFormSection()` in
-  `pwa/app.js`) to collapse/expand. All three **always start expanded**
-  on open — no persisted state, purely a per-session scroll-reduction
-  convenience. Generic helper, so wrapping additional sections later
-  (e.g. "The Work") is a one-line change, not new logic.
-- **Add/edit form field order reworked this session**
-  (`openSheet()`): Status + Source (top row) → Customer → Equipment →
-  Photos → a new "The Work" section (Likely Causes, Diagnostic Steps,
-  Service Checklist, Diagnosis, Parts, The Fix) → Notes. Photos moved
-  up from the very bottom to right after Equipment, since photos are
-  usually taken while looking at the equipment, not at the end of data
-  entry. Source moved up next to Status — both are "state of this
-  ticket" metadata, kept separate from the technical narrative below.
-  Diagnosis (`title`) deliberately sits *after* Likely Causes/
-  Diagnostic Steps/Checklist now — it's meant to be the concise
-  conclusion written once the rest is worked through, not a
-  first-guess symptom field.
-- **Board card changes this session:** the Engine filter chip row was
-  replaced by a Category filter chip row (`categoryFilter`/
-  `renderCategoryFilters()`, was `engineFilter`/`renderEngineFilters()`),
-  and the card badge shows `equipmentCategory` instead of
-  `engineModel` (`.category-badge` CSS class, was `.engine-badge`).
+- **Repair status** (`status`): `needs-diagnosis` (default) /
+  `waiting-quote` / `waiting-parts` / `in-progress` / `complete`, set via
+  a dropdown, shown as a color-coded board badge, filterable via status
+  chips (`getEntryStatus()`/`STATUS_LABELS`/`saveEntry()`). Replaced the
+  old binary `isNeedsDiagnosis()` heuristic, which still runs internally
+  as the fallback for entries with no explicit status — don't reintroduce
+  a second, parallel status concept. `completedAt` stamps the moment
+  status becomes `complete` and clears if it moves away again, so it
+  never shows a stale completion date on a reopened entry — deliberately
+  auto-stamped with no date/time field in the normal form (the right
+  default for the common case). A separate "Edit completed date/time"
+  pencil button in the detail view (`editCompletedDate()`/
+  `showDateTimePrompt()`) handles backdating/correcting without tempting
+  second-guessing during normal use. Completed entries stay on the board
+  by default. **Desktop has neither the field nor the UI yet** — see
+  TODO.md.
+- **Equipment category** (`equipmentCategory`): free-type input with a
+  `<datalist>` of 9 starting options (`EQUIPMENT_CATEGORY_OPTIONS`) —
+  picking from the list or typing something else both work. Drives which
+  Service Checklist fields show (`getVisibleChecklistKeys()`): every
+  category gets a base six (`CHECKLIST_BASE`) plus category-specific
+  extras (`CATEGORY_CHECKLIST_EXTRAS`). "Electric" is the one exception —
+  it defines its entire checklist via `CATEGORY_CHECKLIST_FULL` (Clean
+  Deck + Blade Sharpening only, since the combustion-engine base checks
+  don't apply). **A blank or unrecognized category always shows every
+  field** — narrowing only happens for a category on the known list,
+  never by default, so a typo or uncategorized entry never silently
+  hides something. A per-entry `showAllFields` toggle overrides narrowing
+  entirely regardless of category. Checklist data for a currently-hidden
+  field is never lost — `liveChecklistState` holds every key's
+  `{checked, note}` independent of which rows are rendered.
+- **Checklist items** (`CHECKLIST_ITEMS`, 12 items): Fuel Additive was
+  removed (recommended verbally, not tracked as a checklist item — old
+  entries' `fuelAdditive` data is untouched, just no longer rendered).
+  Oil Change is relabeled "Oil" so either "checked" or "changed" fits the
+  note.
+- **Brand fields:** `equipmentBrand` and `engineBrand`, split out from
+  `equipmentModel`/`engineModel` (which used to have the brand typed
+  directly into the model field).
+- **`title`**, UI-labeled "Diagnosis" (field name unchanged) — no longer
+  drives the board title (see `primaryComplaint` below); shows as the
+  card's preview line instead, and has its own detail-drawer section
+  (between Diagnostic Steps and The Fix). `partsUsed` is labeled "Parts,"
+  meant to hold parts still needed/quoted too, not just parts already
+  used.
+- **`primaryComplaint`** — short, concise summary field in the Customer
+  section (e.g. "won't start"), distinct from the longer freeform
+  `customerRequest` textarea ("what the customer said," which tends to
+  run longer than a title should). Card `<h3>` headline and detail-drawer
+  header both read `primaryComplaint || title || customerName ||
+  'Untitled entry'`. **PWA-only** — see field list above.
+- **Collapsible form sections:** Customer, Equipment, and Service
+  Checklist headers in the add/edit sheet are tappable
+  (`toggleFormSection()`) to collapse/expand; all three always start
+  expanded on open (no persisted state — a per-session scroll-reduction
+  convenience). Generic helper, so wrapping additional sections later is
+  a one-line change.
+- **Add/edit form field order:** Status + Source (top row) → Customer →
+  Equipment → Photos → "The Work" (Likely Causes, Diagnostic Steps,
+  Service Checklist, Diagnosis, Parts, The Fix) → Notes. Photos sit right
+  after Equipment since they're usually taken while looking at the
+  equipment, not at the end of data entry. Diagnosis (`title`)
+  deliberately sits *after* Likely Causes/Diagnostic Steps/Checklist —
+  it's the concise conclusion written once the rest is worked through,
+  not a first-guess symptom field.
+- **Board card:** Category filter chip row (`categoryFilter`/
+  `renderCategoryFilters()`) replaced the old Engine filter; card badge
+  shows `equipmentCategory` (`.category-badge`, was `.engine-badge`).
   Engine brand/model/code are unchanged everywhere else — still on the
   form, in the detail drawer, and searchable, just off the card/filter
-  row. Card preview text (`.preview`) is now clamped to 2 lines via
-  `-webkit-line-clamp` (previously unbounded — a long Fix could make a
-  card arbitrarily tall) and, **as of a later session, pulls from
-  `title || fix || causes`** (was `fix || causes` only) — once
-  `primaryComplaint` became the headline, Diagnosis (`title`) became
-  the natural lead-in for "what happened / how it was fixed" on this
-  line. `customerRequest` was dropped as a fallback since in practice
-  it tends to just restate the complaint in different words. Line 2
-  (conditional `customerName`, shown only when `title` is present) is
-  unchanged.
-- **Data-safety fixes this session, all in `pwa/app.js`:**
-  - Sync baseline is now saved immediately after a successful push,
-    not after photo sync completes. Previously, if photo sync threw
-    for any reason, the whole sync's baseline update was skipped even
-    though entries had already merged/saved/pushed successfully —
-    leaving a stale baseline that could make the next sync miscompare
-    "changed since last sync" and manufacture a false conflict. Photo
-    sync failures are now caught separately and no longer block or
-    roll back the (already-correct) entries sync.
-  - Conflict-duplicate IDs are now deterministic
-    (`olderId-conflict-<older.updatedAt>`, was
-    `olderId-conflict-<Date.now()>`) so a re-run of the merge on the
-    same disagreement converges on the same duplicate record instead
-    of minting a new one every time.
-  - `deleteEntry()` no longer deletes a photo blob that another
-    surviving entry still references — it builds a set of every photo
-    ID still used elsewhere first. This mattered specifically for
-    conflict-duplicate entries, which are copies of an *older* version
-    of another entry and very often still list the same photo IDs as
-    the surviving version; deleting the duplicate could previously
-    wipe photos the kept entry still needed.
-  - Saving an entry or attaching a photo now catches IndexedDB write
-    failures (e.g. device storage full) and shows a message instead of
-    failing completely silently.
-  - `navigator.storage.persist()` is requested on load (best-effort,
-    not guaranteed) to reduce the chance of the browser evicting
-    IndexedDB data under storage pressure.
-  - New manual cleanup tool: Settings → Maintenance → "Clean up old
-    deleted entries…" (`cleanUpOldRecords()`). Only removes tombstoned
-    entries and conflict-duplicate copies untouched for 90+ days
-    (`CLEANUP_AGE_MS`), never anything currently visible on the board,
-    and warns the user to confirm other devices have synced recently
-    first. When signed in, it deliberately bypasses the normal merge —
-    it edits the OneDrive file directly to also drop the same IDs
-    remotely — since a normal merge can't distinguish "never had this
-    id" from "deliberately removed it" and would just pull the purged
-    records back down.
-- **`pwa/index.html` + `pwa/style.css` + `pwa/app.js`** (split this
-  session): the app grew from a single ~1,950-line HTML file to a
-  point where that was hurting more than the zero-build-step
-  simplicity was helping. Split into plain `<link rel="stylesheet">`
-  and `<script src="app.js">` tags — no bundler introduced, still
-  zero-build-step. `service-worker.js`'s `APP_SHELL` cache list was
-  updated to include both new files; remember this any time a new
-  top-level file gets added, or it won't be available offline.
+  row. Card preview text (`.preview`) is clamped to 2 lines via
+  `-webkit-line-clamp` and pulls from `title || fix || causes` (once
+  `primaryComplaint` became the headline, Diagnosis became the natural
+  lead-in for "what happened"). `customerRequest` was dropped as a
+  fallback since it tends to just restate the complaint in different
+  words.
+- **Data-safety details, all in `pwa/app.js`:**
+  - Sync baseline saves immediately after a successful push, not after
+    photo sync completes — a photo-sync failure no longer leaves a stale
+    baseline that could manufacture a false conflict on the next sync.
+  - Conflict-duplicate IDs are deterministic
+    (`olderId-conflict-<older.updatedAt>`), so re-running the merge on
+    the same disagreement converges on the same record instead of
+    minting a new one each time.
+  - `deleteEntry()` never deletes a photo blob another surviving entry
+    still references — it builds a set of every photo ID still in use
+    first. Matters especially for conflict-duplicate entries, which are
+    copies of an older version of another entry and often still list the
+    same photo IDs. This same safety check also covers waiver photos.
+  - Save/photo-attach failures (e.g. device storage full) show a message
+    instead of failing silently.
+  - `navigator.storage.persist()` is requested on load (best-effort) to
+    reduce the chance of IndexedDB eviction under storage pressure.
+  - Settings → Maintenance → "Clean up old deleted entries…"
+    (`cleanUpOldRecords()`) removes only tombstoned entries and
+    conflict-duplicate copies untouched for 90+ days (`CLEANUP_AGE_MS`),
+    warns to confirm other devices have synced recently first, and (when
+    signed in) edits the OneDrive file directly to drop the same IDs
+    remotely — a normal merge can't distinguish "never had this id" from
+    "deliberately removed it" and would just pull the purged records
+    back down.
+- **`pwa/index.html` + `pwa/style.css` + `pwa/app.js`** — split from a
+  single ~1,950-line HTML file once that hurt more than the
+  zero-build-step simplicity helped. Plain `<link>`/`<script src>` tags,
+  no bundler. `service-worker.js`'s `APP_SHELL` cache list includes both
+  — remember this any time a new top-level file gets added, or it won't
+  be available offline.
 - Storage is IndexedDB (entries + photo blobs) — no backend, since
-  GitHub Pages is static hosting only.
-- **Manual JSON export** (`exportAllData()`, lives in Settings →
-  Backup — see "Settings panel" below for why it moved out of the
-  header). Bundles every entry plus all photo blobs (base64-encoded)
-  into one timestamped downloadable JSON file — a portable backup
-  independent of OneDrive/Microsoft entirely. Added specifically as a
-  safety net before OneDrive sync went in, per the user's past
-  experience losing data to backends that became unreachable — see
-  Sync plan above.
-- Camera capture uses `<input type="file" capture="environment">`,
-  not `getUserMedia` — more reliable across iOS Safari + Android
-  Chrome than a live camera stream.
-- **Cache-busting + update banner** (added in this session): the
-  GitHub Actions workflow stamps a `__VERSION__` placeholder in
-  `service-worker.js` with the deploy's commit hash automatically, so
-  every real push forces a fresh cache. The app itself shows a "new
-  version available" banner and only reloads when the user taps
-  Refresh (not automatically), using the standard
-  waiting-worker/postMessage pattern. Do not remove the
-  `self.skipWaiting()` omission in the install handler — that's
-  intentional, it's what makes the banner flow possible.
-- Simpler single-work-order-at-a-time interface (no tabs) — deliberate
-  choice given phone screen size; confirmed with the user rather than
-  assumed.
-- **Back button closes the open entry/photo, not the app.** Uses
-  `history.pushState`/`popstate` with a small view stack (board →
-  sheet → lightbox). Opening a brand-new unsaved entry sets
-  `sheetIsNewUnsaved`; the popstate handler intercepts back on that
-  state specifically to confirm discard before actually closing
-  (existing/saved entries close on back with no confirm — matches
-  desktop's tab-close scope, see below).
-- **Photo lightbox** supports prev/next arrows and swipe between all
-  of an entry's photos, plus a "Set as cover" action. Cover is not a
-  separate field — it just reorders `photos[]` so the chosen photo
-  becomes index 0, since both apps already treat `photos[0]` as the
-  thumbnail.
-- **OneDrive sessions lapse every ~24h by design — not a bug.**
-  Refresh tokens issued to an Azure app registered under the "SPA"
-  redirect-URI type (required for a browser app like this) have a
-  fixed, non-adjustable ~24-hour lifetime regardless of how often the
-  app is used — a Microsoft security policy for SPAs, not something
-  this app's code controls. Once it lapses, `acquireTokenSilent()`
-  fails and the account still shows signed in (`isSignedIn()` stays
-  true — only the token expired, not the remembered account), so
-  syncing quietly starts failing rather than throwing up a visible
-  prompt on its own. The only alternative is registering as a
-  "public client" (native/mobile) app instead, which gets 90-day
-  rolling tokens — rejected here since that flow requires clunky
-  device-code auth (visit a URL, type a code) instead of the current
-  one-tap redirect; not worth the trade for a once-a-day tap.
-- **Header "Reconnect OneDrive" button, added this session** — a
-  direct answer to the above rather than the auth model itself
-  changing: the user kept forgetting a lapsed connection existed
-  since the only indicator was a small colored dot on the gear icon.
-  Shows next to the settings gear, hidden unless BOTH: this device has
-  connected before, AND it isn't currently synced/syncing right now
-  (`setSyncBar()` in `pwa/app.js` toggles it alongside the existing
-  `disconnectBtn` logic). Tapping it just calls the existing
-  `signInOneDrive()` — same fast reconnect (no retyping a password
-  when the browser's own Microsoft session is still live) as the
-  "Connect OneDrive"/"Retry" button already in Settings, just visible
-  without opening anything. Tracked via a new, deliberately separate
-  `ONEDRIVE_EVER_CONNECTED_KEY` localStorage flag (not reusing
-  `SYNC_LAST_KEY`) — survives a lapsed token (so it still reads
-  "Reconnect," not "Connect") but is cleared on an *intentional*
-  disconnect from Settings, so the button doesn't nag right after the
-  user chose to disconnect.
-- **Header wordmark dropped, moved into the icon lightbox, added
-  this session.** The "BENCH NOTES" `<h1>` was crowding the header
-  once the Reconnect button needed room — decided the persistent
-  title wasn't earning its space for a single-screen app the user
-  already knows they're in (title is reassurance, not navigation
-  info, unlike a multi-tab app). Header is icon-only now
-  (`.header-brand`); tapping the icon still opens the existing
-  lightbox (`openIconLightbox()`/`closeIconLightbox()` in
-  `pwa/app.js`, unchanged), which now shows the icon, the "BENCH
-  NOTES" title underneath it, and a short appreciation note in
-  italics below that ("Knowledge gained from dad. Thank you for this
-  wonderful opportunity.") — a deliberate easter egg for Dad if he
-  ends up using this on his phone. Purely `pwa/index.html` +
-  `pwa/style.css`; no JS logic changed.
-- **"Electric" equipment category, added since documented.** Unlike
-  every other category, it doesn't get `CHECKLIST_BASE` (Spark Test,
-  Spark Plug, Compression Test, Fuel Tank, Air Filter, Oil) — those
-  are combustion-engine checks that don't apply. `CATEGORY_CHECKLIST_
-  FULL` lets a category define its entire visible checklist instead of
-  the usual base-plus-extras (Electric: Clean Deck + Blade Sharpening
-  only). "Show all fields" still overrides it like any other category.
-- **In-app waiver, the biggest feature added yet — see TODO.md
-  "Waiver feature" for the full build and testing checklist.** Adapted
-  from the user's own uploaded/edited Idaho repair-shop docx — Claude
-  did not draft the legal language, and the digital/paper *mechanisms*
-  (not just the wording) are pending the user's attorney review before
-  real customers use this. Key decisions worth remembering:
-  - Business name (K&M Small Engines) and pricing ($25 diagnostic,
-    $10/day storage) are hardcoded constants in `pwa/app.js`
-    (`BUSINESS_NAME`, `DIAGNOSTIC_FEE`, `STORAGE_FEE_PER_DAY`), not a
-    Settings field — deliberate. Considered making this a Settings
-    field first; rejected once the user pointed out the business name
-    is already publicly findable, so hiding it in Settings wasn't
-    protecting anything, and both values are stable enough that
-    hardcoding beats "one more setting to remember to fill in."
-  - `WAIVER_VERSIONS` is versioned on purpose — an entry's
-    `waiver.version` locks in exactly which wording that customer
-    agreed to. **Never edit an existing version's text** — bump
-    `CURRENT_WAIVER_VERSION` to a new key instead, or every past
-    signature silently stops matching what it actually says it agreed
-    to.
-  - The text shown while signing (digital) and the text that prints
-    (either path) come from the exact same `buildWaiverText()` call —
-    customer name, equipment, serial, date, and reported problem
-    (Primary Complaint, falling back to Request) all live-merged in,
-    never a generic template shown separately from the specifics. This
-    was a deliberate correction mid-design after an earlier draft had
-    the sign screen show boilerplate and only merge in specifics at
-    print time — the user was clear a customer should never see two
-    different versions of "their" waiver.
-  - Placement follows the actual counter workflow, not file/code
-    convenience: Customer → Equipment → **Waiver** → Photos → rest of
-    form. The customer physically holds the phone to sign, which is
-    why the sign screen is a dedicated full-screen view with nothing
-    else of the app reachable while it's open, and why it ends with a
-    "Thank you for trusting us with your equipment!" confirmation
-    before handing control back rather than dropping straight back
-    into the form.
-  - Two signing paths, both producing a real durable record:
-    **digital** (`signatureType:'digital'`, scroll-to-bottom unlocks
-    the agree checkbox, typed full name, timestamp) and **physical**
-    (`signatureType:'physical'`, `photoIds[]` — plural, since a
-    multi-page waiver needs more than one photo; "Print for Physical
-    Signature" creates the record immediately with an empty array, so
-    status persists as "Printed — attach photo once signed" across the
-    gap between printing and actually getting photos back). Waiver
-    photos reuse the existing photo capture/compression pipeline but
-    are tracked separately from `entry.photos`, specifically so they
-    surface inside the Waiver section, not mixed into general
-    equipment documentation.
-  - `deleteEntry()`'s existing conflict-duplicate photo safety check
-    (don't delete a blob another surviving entry still references) was
-    extended to cover waiver photos too, not just `entry.photos` —
-    same bug class, real gap if left unaddressed while touching this
-    code anyway.
-  - Printing uses `window.print()` + `@media print` CSS scoped to a
-    hidden `#printableWaiver` container — no PDF library, consistent
-    with the app's zero-build-step architecture. "Save as PDF" from
-    the browser's print dialog covers the export use case for free.
-- Deployed to GitHub Pages and tested on a real Android phone,
-  including home-screen install. Still outstanding: offline/
-  airplane-mode test, and getting it in front of Dad's iPhone — see
-  `TODO.md`.
+  GitHub Pages is static-only.
+- **Manual JSON export** (`exportAllData()`, Settings → Backup) bundles
+  every entry plus all photo blobs (base64) into one timestamped
+  downloadable file — a portable backup independent of OneDrive/
+  Microsoft entirely, added as a safety net given the user's past
+  experience losing data to unreachable backends.
+- Camera capture uses `<input type="file" capture="environment">`, not
+  `getUserMedia` — more reliable across iOS Safari + Android Chrome than
+  a live stream.
+- **Cache-busting + update banner:** the GitHub Actions workflow stamps a
+  `__VERSION__` placeholder in `service-worker.js` with the deploy's
+  commit hash, so every real push forces a fresh cache. The app shows a
+  "new version available" banner and only reloads when the user taps
+  Refresh — the `self.skipWaiting()` omission in the install handler is
+  intentional and required for this flow.
+- Single-work-order-at-a-time interface (no tabs) — deliberate given
+  phone screen size, confirmed with the user rather than assumed.
+- **Back button closes the open entry/photo, not the app** — uses
+  `history.pushState`/`popstate` with a small view stack (board → sheet →
+  lightbox). Opening a brand-new unsaved entry sets `sheetIsNewUnsaved`;
+  back on that state confirms discard first (existing/saved entries close
+  on back with no confirm, matching desktop's tab-close scope).
+- **Photo lightbox** supports prev/next + swipe between an entry's
+  photos, plus "Set as cover" — reorders `photos[]` so the chosen photo
+  becomes index 0 (no separate cover field).
+- **OneDrive sessions lapse every ~24h by design, not a bug** — Azure's
+  SPA redirect-URI app type gets a fixed, non-adjustable ~24-hour refresh
+  token lifetime regardless of usage. Once lapsed, `acquireTokenSilent()`
+  fails but `isSignedIn()` stays true (only the token expired), so
+  syncing quietly stops working with no prompt on its own — hence the
+  header "Reconnect OneDrive" button (shown when this device has
+  connected before and isn't currently synced/syncing;
+  `ONEDRIVE_EVER_CONNECTED_KEY` in localStorage, separate from
+  `SYNC_LAST_KEY` so it survives a lapsed token but clears on an
+  intentional Disconnect). The alternative — registering as a "public
+  client" (native/mobile) app for 90-day rolling tokens — was rejected
+  since it requires clunky device-code auth (visit a URL, type a code)
+  instead of the current one-tap redirect; not worth it for a
+  once-a-day tap.
+- **Header is icon-only** — the persistent "BENCH NOTES" `<h1>` was
+  dropped once the Reconnect button needed the room; decided the title
+  wasn't earning its space for a single-screen app the user already
+  knows they're in. Tapping the header icon opens a lightbox
+  (`openIconLightbox()`/`closeIconLightbox()`) showing the icon, the
+  title, and a short appreciation note in italics ("Knowledge gained
+  from dad. Thank you for this wonderful opportunity.") — an easter egg
+  for Dad if he ends up using this on his phone.
+- **"Electric" equipment category** doesn't get `CHECKLIST_BASE` (those
+  are combustion-engine checks) — `CATEGORY_CHECKLIST_FULL` lets a
+  category define its entire visible checklist instead of the usual
+  base-plus-extras. "Show all fields" still overrides it like any other
+  category.
+- Deployed to GitHub Pages, tested on a real Android phone including
+  home-screen install. Outstanding: offline/airplane-mode test, and
+  getting it in front of Dad's iPhone — see `TODO.md`.
+
+## Waiver feature
+
+In-app Idaho repair-shop waiver, adapted from the user's own uploaded/
+edited docx — Claude did not draft the legal language. The
+digital/paper *mechanisms* (not just the wording) are pending the user's
+attorney review before real customers use this.
+
+- Business name (K&M Small Engines) and pricing ($25 diagnostic, $10/day
+  storage) are hardcoded constants in `pwa/app.js` (`BUSINESS_NAME`,
+  `DIAGNOSTIC_FEE`, `STORAGE_FEE_PER_DAY`), not a Settings field —
+  deliberate: the business name is already publicly findable, so
+  Settings wasn't protecting anything, and both values are stable enough
+  to not need "one more setting to remember to fill in."
+- `WAIVER_VERSIONS` is versioned on purpose — an entry's `waiver.version`
+  locks in exactly which wording that customer agreed to. **Never edit
+  an existing version's text** — bump `CURRENT_WAIVER_VERSION` to a new
+  key instead, or every past signature silently stops matching what it
+  actually agreed to.
+- The text shown while signing (digital) and the text that prints
+  (either path) come from the same `buildWaiverText()` call — customer
+  name, equipment, serial, date, and reported problem all live-merged
+  in, never a generic template shown separately from the specifics. A
+  customer should never see two different versions of "their" waiver.
+- Placement follows the actual counter workflow: Customer → Equipment →
+  **Waiver** → Photos → rest of form. The sign screen is a dedicated
+  full-screen view with nothing else of the app reachable while it's
+  open (the customer physically holds the phone), and ends with "Thank
+  you for trusting us with your equipment!" before returning control.
+- Two signing paths, both producing a durable record: **digital**
+  (`signatureType:'digital'`, scroll-to-bottom unlocks the agree
+  checkbox, typed full name, timestamp) and **physical**
+  (`signatureType:'physical'`, `photoIds[]` — plural, since a multi-page
+  waiver needs more than one photo; "Print for Physical Signature"
+  creates the record immediately with an empty array, so status persists
+  as "Printed — attach photo once signed" across the gap between
+  printing and getting photos back). Waiver photos reuse the existing
+  photo capture/compression pipeline but are tracked separately from
+  `entry.photos`, so they surface inside the Waiver section specifically.
+- Printing uses `window.print()` + `@media print` CSS scoped to a hidden
+  `#printableWaiver` container — no PDF library, consistent with the
+  app's zero-build-step architecture; "Save as PDF" from the browser's
+  print dialog covers export for free.
 
 ## What's realistically next
 
-Check `TODO.md` for the live checklist — it's the source of truth for
-what's tested vs. not, and for open decisions. As of this handoff:
+`TODO.md` is the live, open-only task list — check it, not this section,
+for what's actually outstanding. Two things worth stating plainly here
+since they're easy to get backwards:
 
-- **OneDrive sync (PWA) is built and tested**, not a future item — sign-in,
-  merge, photos, restore, and disconnect have all been exercised for real
-  by the user. Don't treat sync as unbuilt; that was true early on but
-  isn't anymore.
-- **Desktop work is halted, not an open gap to close.** It fell
-  behind over many sessions of PWA-only iteration (no OneDrive sync,
-  no repair-status field, no equipment category/brand fields, no
-  checklist-narrowing, no showAllFields, no Waiting on Quote status,
-  no card/form rework, none of it ported) — but as of this note, the
-  user's stated intention is to remove `/desktop` entirely and has
-  asked for **no further desktop work of any kind until they
-  explicitly request it.** See the halt directive at the top of
-  "Working agreements" and TODO.md's "Decisions to make" for the full
-  context. Don't propose closing desktop parity gaps or start desktop
-  OneDrive sync work — that's not a live next step anymore.
-- **QuickBooks invoice export** (see TODO.md) is a real, deliberate
-  future idea — IIF file export for QuickBooks Pro 2014 — not started,
-  not urgent, don't build it opportunistically without the user asking.
+- **OneDrive sync (PWA) is built and tested** — sign-in, merge, photos,
+  restore, and disconnect have all been exercised for real. Don't treat
+  it as unbuilt.
+- **Desktop work is halted, not an open gap to close.** See "Working
+  agreements" above — don't propose closing desktop parity gaps or start
+  desktop OneDrive sync work.
