@@ -39,7 +39,15 @@ lives in the README files.
   context and what actual removal will involve when requested.
 - **Confirm before starting new builds/changes** — don't just proceed
   on a big feature without checking scope/direction first, especially
-  when there's real ambiguity in how to design something.
+  when there's real ambiguity in how to design something. This has
+  actually been violated once: asked which of three signing approaches
+  fit the waiver feature, got an answer, then jumped straight to
+  building the entire thing — placement, flow, printing, all of it —
+  without laying any of that out for confirmation first. The user
+  pushed back explicitly and asked to "sandbox" it as a conversation
+  instead. Answering a scoping question is not the same as having
+  agreed to a build — placement, flow, and UI mechanics are their own
+  decisions and need their own confirmation, even after intent is clear.
 - **Confirm before packaging/sending files** — and when sending, only
   include the files actually touched by the change, not the whole
   repo. The user uses their own "download all" zip option when they
@@ -344,6 +352,8 @@ are*, so you don't accidentally re-litigate settled decisions.
   `status` (one of `needs-diagnosis` / `waiting-quote` / `waiting-
   parts` / `in-progress` / `complete`, PWA-only, see PWA specifics),
   `completedAt` (timestamp, PWA-only, see PWA specifics),
+  `waiver` (PWA-only, object or null — see PWA specifics for the full
+  shape and feature),
   `completed`, `createdAt`, `updatedAt` (stamped on every
   create/edit; required by the sync merge logic), `dateAdded`.
   Two more fields exist but are conditional/rare, not part of the
@@ -352,9 +362,11 @@ are*, so you don't accidentally re-litigate settled decisions.
   conflict's duplicate copy, points at the id of the entry that won
   the conflict). If you add a field to one app, add it to the other at
   the same time — `equipmentCategory`/`equipmentBrand`/`engineBrand`/
-  `showAllFields`/`waiting-quote`/`primaryComplaint` are current
+  `showAllFields`/`waiting-quote`/`primaryComplaint`/`waiver` are current
   PWA-only gaps, added across recent sessions, not yet ported to
-  desktop.
+  desktop — though see the desktop halt directive in "Working
+  agreements" above before treating any of these as something to
+  actively close right now.
 - **Photo order is meaningful.** `photos[0]` is always the cover/
   thumbnail — both apps rely on this convention instead of a separate
   "cover photo" field, so reordering the array (not adding a new field)
@@ -677,6 +689,71 @@ are*, so you don't accidentally re-litigate settled decisions.
   wonderful opportunity.") — a deliberate easter egg for Dad if he
   ends up using this on his phone. Purely `pwa/index.html` +
   `pwa/style.css`; no JS logic changed.
+- **"Electric" equipment category, added since documented.** Unlike
+  every other category, it doesn't get `CHECKLIST_BASE` (Spark Test,
+  Spark Plug, Compression Test, Fuel Tank, Air Filter, Oil) — those
+  are combustion-engine checks that don't apply. `CATEGORY_CHECKLIST_
+  FULL` lets a category define its entire visible checklist instead of
+  the usual base-plus-extras (Electric: Clean Deck + Blade Sharpening
+  only). "Show all fields" still overrides it like any other category.
+- **In-app waiver, the biggest feature added yet — see TODO.md
+  "Waiver feature" for the full build and testing checklist.** Adapted
+  from the user's own uploaded/edited Idaho repair-shop docx — Claude
+  did not draft the legal language, and the digital/paper *mechanisms*
+  (not just the wording) are pending the user's attorney review before
+  real customers use this. Key decisions worth remembering:
+  - Business name (K&M Small Engines) and pricing ($25 diagnostic,
+    $10/day storage) are hardcoded constants in `pwa/app.js`
+    (`BUSINESS_NAME`, `DIAGNOSTIC_FEE`, `STORAGE_FEE_PER_DAY`), not a
+    Settings field — deliberate. Considered making this a Settings
+    field first; rejected once the user pointed out the business name
+    is already publicly findable, so hiding it in Settings wasn't
+    protecting anything, and both values are stable enough that
+    hardcoding beats "one more setting to remember to fill in."
+  - `WAIVER_VERSIONS` is versioned on purpose — an entry's
+    `waiver.version` locks in exactly which wording that customer
+    agreed to. **Never edit an existing version's text** — bump
+    `CURRENT_WAIVER_VERSION` to a new key instead, or every past
+    signature silently stops matching what it actually says it agreed
+    to.
+  - The text shown while signing (digital) and the text that prints
+    (either path) come from the exact same `buildWaiverText()` call —
+    customer name, equipment, serial, date, and reported problem
+    (Primary Complaint, falling back to Request) all live-merged in,
+    never a generic template shown separately from the specifics. This
+    was a deliberate correction mid-design after an earlier draft had
+    the sign screen show boilerplate and only merge in specifics at
+    print time — the user was clear a customer should never see two
+    different versions of "their" waiver.
+  - Placement follows the actual counter workflow, not file/code
+    convenience: Customer → Equipment → **Waiver** → Photos → rest of
+    form. The customer physically holds the phone to sign, which is
+    why the sign screen is a dedicated full-screen view with nothing
+    else of the app reachable while it's open, and why it ends with a
+    "Thank you for trusting us with your equipment!" confirmation
+    before handing control back rather than dropping straight back
+    into the form.
+  - Two signing paths, both producing a real durable record:
+    **digital** (`signatureType:'digital'`, scroll-to-bottom unlocks
+    the agree checkbox, typed full name, timestamp) and **physical**
+    (`signatureType:'physical'`, `photoIds[]` — plural, since a
+    multi-page waiver needs more than one photo; "Print for Physical
+    Signature" creates the record immediately with an empty array, so
+    status persists as "Printed — attach photo once signed" across the
+    gap between printing and actually getting photos back). Waiver
+    photos reuse the existing photo capture/compression pipeline but
+    are tracked separately from `entry.photos`, specifically so they
+    surface inside the Waiver section, not mixed into general
+    equipment documentation.
+  - `deleteEntry()`'s existing conflict-duplicate photo safety check
+    (don't delete a blob another surviving entry still references) was
+    extended to cover waiver photos too, not just `entry.photos` —
+    same bug class, real gap if left unaddressed while touching this
+    code anyway.
+  - Printing uses `window.print()` + `@media print` CSS scoped to a
+    hidden `#printableWaiver` container — no PDF library, consistent
+    with the app's zero-build-step architecture. "Save as PDF" from
+    the browser's print dialog covers the export use case for free.
 - Deployed to GitHub Pages and tested on a real Android phone,
   including home-screen install. Still outstanding: offline/
   airplane-mode test, and getting it in front of Dad's iPhone — see

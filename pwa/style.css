@@ -59,6 +59,8 @@
   #syncStatusText.clickable{cursor:pointer; text-decoration:underline;}
 
   .settings-box{max-width:400px;}
+  .waiver-box{max-width:480px;}
+  .waiver-text-scroll{max-height:260px; overflow-y:auto; border:1px solid var(--rule); border-radius:6px; padding:14px; font-size:13px; line-height:1.55; white-space:pre-wrap; background:var(--panel-raised);}
   .settings-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;}
   .settings-header h2{font-family:'Oswald',sans-serif; font-size:18px; text-transform:uppercase;}
   .settings-header .modal-btn{padding:6px 12px; font-size:11px;}
@@ -230,3 +232,24 @@
   .checklist-fix-line + .checklist-fix-line{border-top:1px dashed var(--rule);}
 
   .stat-line{padding:6px 16px 4px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted);}
+
+  /* Printable waiver — hidden in the normal app UI, only shown when
+     printWaiver() populates it and calls window.print(). Kept as plain
+     black-on-white regardless of the app's dark theme, since this is
+     meant to be a normal-looking printed/PDF'd document, not a screenshot
+     of the app. */
+  #printableWaiver{display:none;}
+  @media print{
+    body *{visibility:hidden;}
+    #printableWaiver, #printableWaiver *{visibility:visible;}
+    #printableWaiver{
+      display:block; position:absolute; top:0; left:0; width:100%;
+      padding:24px; background:#fff; color:#111;
+      font-family:'IBM Plex Sans',sans-serif; font-size:13px; line-height:1.5;
+    }
+    #printableWaiver .print-waiver-body{white-space:pre-wrap; margin-bottom:24px;}
+    #printableWaiver .print-signature-block{margin-top:24px;}
+    #printableWaiver .print-sig-line{border-bottom:1px solid #333; min-height:34px; display:flex; align-items:flex-end; padding-bottom:2px;}
+    #printableWaiver .print-signature-script{font-family:'Brush Script MT', 'Segoe Script', cursive; font-size:22px;}
+    #printableWaiver .print-sig-label{font-size:11px; color:#555; margin:2px 0 18px;}
+  }

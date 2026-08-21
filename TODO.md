@@ -6,6 +6,8 @@ _Since then (user confirmed the above batch tested and working, most of it kept 
 
 _Most recently: explained why OneDrive sessions lapse roughly daily (fixed ~24h Azure SPA refresh-token policy, not a bug) and added a "Reconnect OneDrive" header button next to the settings gear so a lapsed connection isn't easy to forget about — shows only on a device that's connected before and isn't currently synced. That button needed header space, which prompted dropping the persistent "BENCH NOTES" title from the header entirely; it now lives in the icon lightbox instead (tap the header icon), alongside a new short appreciation note for Dad as an easter egg. None of this tried in a browser yet — see "Latest session's PWA changes" below._
 
+_Biggest addition yet: an in-app Idaho repair-shop waiver, built from the user's own uploaded/edited document, not drafted by Claude — see "Waiver feature" below for the full build. Business name (K&M Small Engines) and pricing ($25 diagnostic, $10/day storage) are hardcoded constants, not a setting — deliberate, since both are already public and effectively static. **Pending the user's attorney reviewing both the digital and paper signing flows before use with real customers** — this shipped as a technical build, not a legal sign-off. Also added this session: an "Electric" equipment category with its own fully-explicit checklist (Clean Deck + Blade Sharpening only, no combustion-engine base fields), and a real bug fix to the "Reconnect OneDrive" button from last session — it only set its tracking flag when actively signed in at load, so a device already disconnected the first time that code ran would never see the button at all; now backfills from prior sync history too. None of this tried in a browser yet._
+
 ## Repo structure — decided and built
 - [x] One repo (`bench-notes`), not two — `/pwa` and `/desktop` subfolders
 - [x] GitHub Actions workflow to auto-deploy `/pwa` on push (avoids the
@@ -111,7 +113,10 @@ _Most recently: explained why OneDrive sessions lapse roughly daily (fixed ~24h 
       looking incomplete on the PWA's card/filter/checklist logic — an
       entry with no `equipmentCategory` just shows every checklist
       field, so this degrades gracefully today, but it's still a real
-      gap to close, not just cosmetic.
+      gap to close, not just cosmetic. Since documented: an "Electric"
+      category was added that defines its own full checklist (Clean
+      Deck + Blade Sharpening only) instead of the usual combustion-
+      engine base set — see `CATEGORY_CHECKLIST_FULL` in `pwa/app.js`.
 - [ ] **PARITY GAP — PWA only, added since the last full session:**
       `primaryComplaint` — short summary field that now drives the
       card headline/detail-drawer header (see PWA specifics in
@@ -250,6 +255,73 @@ for iOS entirely.
       working, replaced the
       native browser ones this session
 
+## Waiver feature — PWA built, not yet tested by the user
+Idaho repair-shop waiver, adapted from the user's own uploaded/edited
+docx — Claude did not draft the legal language. **Pending the user's
+attorney reviewing both the digital and paper signing flows before use
+with real customers.** PWA only — desktop is halted (see "Decisions to
+make" above), so this isn't a parity gap to close, just not there.
+- [x] Business name (K&M Small Engines), diagnostic fee ($25), storage
+      fee ($10/day) hardcoded as constants in `pwa/app.js`
+      (`BUSINESS_NAME`, `DIAGNOSTIC_FEE`, `STORAGE_FEE_PER_DAY`) —
+      deliberately not a Settings field. Considered and rejected: the
+      business name is already publicly findable (Google), and both it
+      and pricing are stable enough that hardcoding avoids a whole
+      Settings field just to hold something that rarely changes.
+- [x] Waiver text lives in `WAIVER_VERSIONS` (versioned — see comment
+      in code), sections renumbered 1-8 now that the old "Customer &
+      Equipment Information" section became live-merged fields instead
+      of its own numbered section. Address and Shop Representative
+      Signature lines dropped per the user.
+- [x] Placement: Customer → Equipment → **Waiver** → Photos → rest of
+      form — matches the actual counter workflow (customer signs once
+      their info and equipment are both logged, before technical
+      work/photos happen, which the customer isn't present for)
+- [x] Digital path: full-screen sign screen, nothing else of the app
+      reachable while a customer is holding the device to sign.
+      Deliberately shows the *exact* merged document (customer name,
+      equipment, serial, date, reported problem all filled in from the
+      live in-progress entry) — not generic boilerplate — so what's
+      signed on screen and what prints later are always identical, per
+      the user's "no surprises" requirement. Agree checkbox stays
+      disabled until the text is scrolled to the bottom (or is
+      already-visible in full, on a tall screen) — a real, if modest,
+      way to show the person had a chance to read it. Ends with
+      "Thank you for trusting us with your equipment!" (swapped from
+      "repair" per the user, since not everything serviced is a
+      repair) before returning control to the shop.
+- [x] Paper path: "Print for Physical Signature" generates the same
+      merged document with a blank signature line via `window.print()`
+      (`@media print` CSS hides everything except `#printableWaiver` —
+      no PDF library, matches the zero-build-step architecture).
+      Creates a `waiver` record immediately (before any photo is
+      attached) so status persists as "Printed — attach photo once
+      signed." Attach Photo is repeatable — front/back/multiple pages
+      all supported (`photoIds[]`, not a single photo) — first photo
+      attached flips status to "✓ Signed (N photos attached)."
+- [x] Waiver photos reuse the existing photo capture/compression
+      pipeline but are tracked separately from `entry.photos`, so they
+      show inside the Waiver section specifically, not mixed into
+      general equipment documentation photos.
+- [x] `deleteEntry()`'s existing "don't delete a photo another
+      surviving entry still needs" safety check (for conflict-duplicate
+      entries) extended to also cover waiver photos, not just regular
+      `entry.photos` — same bug class, would've been a real gap if left
+      unaddressed while touching this code anyway.
+- [ ] Test: sign digitally on a real phone screen — confirm the
+      scroll-to-unlock-checkbox behavior actually feels right in
+      practice (not just correct in code), and that the merged text
+      reads naturally with real customer/equipment data in place
+- [ ] Test: "Print for Physical Signature" from an actual phone browser
+      — confirm the print dialog / save-as-PDF produces a legible
+      document, and that attaching 2+ photos (front/back) works as
+      expected
+- [ ] Test: delete an entry with attached waiver photos, confirm the
+      photos actually get cleaned up (or correctly preserved, if a
+      conflict-duplicate entry still references them)
+- [ ] Have the attorney review both signing flows, not just the text —
+      the user was clear this covers the mechanism, not only the words
+
 ## This session's PWA changes — not yet tested by the user
 Everything below was verified for syntax only (`node --check`), not
 tried in an actual browser. Move items to [x] as you confirm them,
@@ -323,7 +395,14 @@ since confirmed tested/working. Also verified for syntax only
       reconnects without needing to retype credentials. Also confirm
       it stays hidden on a device that's never connected, and hidden
       right after an intentional Disconnect from Settings (shouldn't
-      nag either time)
+      nag either time). **Real bug already found and fixed since this
+      was written:** the button's tracking flag only got set when
+      actively signed in at the moment this code first ran — the user
+      hit this immediately, already disconnected, so the flag never
+      turned on and the button never appeared at all. Now also
+      backfills from prior sync history (`SYNC_LAST_KEY`), not just
+      live sign-in state, so an existing user with sync history sees
+      it correctly on first load even if already disconnected.
 - [ ] Header now icon-only (wordmark dropped) — confirm the layout
       looks right with Install + Reconnect + Settings gear all visible
       at once (the crowded case this was meant to fix), and that the

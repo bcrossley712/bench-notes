@@ -1133,6 +1133,340 @@ function getVisibleChecklistKeys(showAll, category){
   return [...CHECKLIST_BASE, ...extras];
 }
 
+// ---------- Waiver ----------
+// Text is the user's own edited Idaho repair-shop document (uploaded,
+// not drafted here) — sections renumbered 1-8 now that the old
+// "1. Customer & Equipment Information" section has become live-merged
+// fields instead of its own numbered section. Address and Shop
+// Representative Signature lines were deliberately dropped per the user.
+// PENDING ATTORNEY REVIEW (of both the digital and paper signing flows,
+// per the user) before this is relied on with real customers — see
+// TODO.md. Business name and pricing are stable enough to hardcode
+// rather than make settings — update here directly if they ever change.
+const BUSINESS_NAME = 'K&M Small Engines';
+const DIAGNOSTIC_FEE = 25;
+const STORAGE_FEE_PER_DAY = 10;
+
+// Versioned on purpose: an entry's `waiver.version` locks in exactly
+// which wording that customer agreed to. If this text is ever edited,
+// bump CURRENT_WAIVER_VERSION to a new key and add a new entry below —
+// never rewrite an existing version's text, or every past signature
+// silently stops matching what it actually says it agreed to.
+const WAIVER_VERSIONS = {
+  v1: {
+    effectiveDate: '2026-08-24',
+    // `d` = the merged customer/equipment fields for one specific entry
+    // (see buildWaiverText) — this is deliberately the SAME text shown
+    // on screen while signing and printed on paper; there is no separate
+    // "generic" version, so what a customer reads is always their exact
+    // waiver, never a template they have to imagine filled in.
+    text: (d)=>`${BUSINESS_NAME}
+Repair Service Agreement, Waiver & Release of Liability
+
+This Repair Service Agreement ("Agreement") is entered into between ${BUSINESS_NAME} ("Shop," "we," "us") and the customer identified below ("Customer," "you"), and applies to the small engine equipment described below that is left with the Shop for diagnosis, service, or repair.
+
+Customer Name: ${d.customerName || '—'}
+Phone: ${d.customerPhone || '—'}
+Equipment: ${d.equipmentDesc || '—'}
+Serial Number: ${d.equipmentSerial || '—'}
+Date Received: ${d.dateReceived || '—'}
+Description of requested service / reported problem: ${d.reportedProblem || '—'}
+
+1. Authorization to Inspect and Repair
+Customer authorizes the Shop to inspect, diagnose, and perform repairs reasonably necessary to address the reported problem. If the Shop discovers additional issues during service, the Shop will make reasonable efforts to contact Customer before performing work beyond the original scope; if Customer cannot be reached within a reasonable time, the Shop may proceed with repairs reasonably necessary to safely complete the job or may pause work and hold the equipment for pickup, at the Shop's discretion.
+
+2. Pre-Existing Conditions & Inherent Risks
+Small engines and related equipment are mechanical systems that can have hidden wear, prior damage, or defects not apparent on initial inspection. Customer acknowledges that: diagnosis and repair may reveal pre-existing damage, wear, or defects unrelated to the reported problem, and the Shop is not responsible for conditions that existed before the equipment was brought in; some repairs carry an inherent risk that further problems may surface during or after service (for example, a related part failing once the engine is run), and this does not by itself mean the repair was performed improperly. The Shop will inform Customer of significant issues discovered during service where practical, but is not liable for pre-existing conditions not caused by the Shop's work.
+
+3. Limitation of Liability
+To the fullest extent permitted by Idaho law, the Shop's liability for any claim arising out of the service performed under this Agreement is limited to the amount Customer paid for the specific service giving rise to the claim. The Shop is not liable for indirect, incidental, or consequential damages, including but not limited to lost use, lost income, or costs of substitute equipment, arising from the repair or the equipment's performance after repair. Nothing in this Agreement waives or limits liability for gross negligence, recklessness, or willful or intentional misconduct by the Shop, as such waivers are not enforceable under Idaho law.
+
+4. Storage of Equipment
+The Shop will use reasonable care for equipment left on its premises. The Shop is not an insurer of Customer's property and is not liable for loss or damage caused by fire, theft, vandalism, weather, or other events outside the Shop's reasonable control. Equipment not picked up within 30 days of notice that service is complete may be subject to storage fees of $${STORAGE_FEE_PER_DAY} per day and, as permitted by Idaho law, may be deemed abandoned and sold or disposed of to recover unpaid charges.
+
+5. Payment
+Customer agrees to pay all charges for diagnosis, parts, and labor upon completion of service, unless other terms are agreed to in writing in advance. A diagnostic fee of $${DIAGNOSTIC_FEE} applies whether or not Customer proceeds with repair, and is credited toward the repair cost if Customer approves the work.
+
+6. Assumption of Risk & Release
+Customer voluntarily assumes the risks described in this Agreement and, in exchange for the Shop performing the requested service, releases the Shop, its owners, and employees from claims for ordinary negligence related to pre-existing equipment conditions and the inherent risks described above. This release does not apply to claims of gross negligence, recklessness, or willful misconduct.
+
+7. Governing Law
+This Agreement is governed by the laws of the State of Idaho. If any provision is found unenforceable, the remaining provisions remain in full effect.
+
+8. Acknowledgment
+By signing below, Customer confirms that they have read this Agreement, understand it, are authorized to leave the described equipment for service, and agree to its terms.`
+  }
+};
+const CURRENT_WAIVER_VERSION = 'v1';
+
+// draftWaiver shape, staged like draftPhotos and applied to the entry on Save:
+//   null — not handled
+//   {version, signatureType:'digital', signedAt, signerName}
+//   {version, signatureType:'physical', printedAt, photoIds:[...]}  — photoIds
+//     starts empty the moment "Print for Physical Signature" is tapped, and
+//     fills in as photos of the actually-signed paper get attached after
+//     the fact — printing and attaching are two separate moments, not one.
+let draftWaiver = null;
+
+// Reads the live in-progress form fields (not yet saved) — used both for
+// the digital sign screen and for printing a blank physical copy, since
+// both need the current entry's actual details before it's been saved.
+function readLiveEntryFieldsForWaiver(){
+  return {
+    customerName: document.getElementById('f_customerName').value.trim(),
+    customerPhone: document.getElementById('f_customerPhone').value.trim(),
+    equipmentBrand: document.getElementById('f_equipmentBrand').value.trim(),
+    equipmentModel: document.getElementById('f_equipmentModel').value.trim(),
+    equipmentSerial: document.getElementById('f_equipmentSerial').value.trim(),
+    dateReceived: document.getElementById('f_dateReceived').value,
+    primaryComplaint: document.getElementById('f_primaryComplaint').value.trim(),
+    customerRequest: document.getElementById('f_customerRequest').value.trim()
+  };
+}
+// `fields` can be either the object above (live, unsaved) or a saved
+// `entry` directly — both have the same field names, so this works for
+// both the in-progress sign/print flow and reprinting a saved entry later.
+function buildWaiverText(version, fields){
+  const versionData = WAIVER_VERSIONS[version] || WAIVER_VERSIONS[CURRENT_WAIVER_VERSION];
+  return versionData.text({
+    customerName: fields.customerName,
+    customerPhone: fields.customerPhone,
+    equipmentDesc: [fields.equipmentBrand, fields.equipmentModel].filter(Boolean).join(' '),
+    equipmentSerial: fields.equipmentSerial,
+    dateReceived: fields.dateReceived,
+    reportedProblem: fields.primaryComplaint || fields.customerRequest
+  });
+}
+
+function renderWaiverStatusBox(){
+  const box = document.getElementById('waiverStatusBox');
+  if(!box) return;
+
+  if(!draftWaiver){
+    box.innerHTML = `
+      <div class="mono" style="font-size:12.5px; color:var(--muted); margin-bottom:8px;">Not signed</div>
+      <div style="display:flex; gap:8px;">
+        <button type="button" class="modal-btn confirm" style="flex:1;" onclick="openWaiverSign()">Sign Digitally</button>
+        <button type="button" class="modal-btn cancel" style="flex:1;" onclick="printForPhysicalSignature()">Print for Physical Signature</button>
+      </div>
+    `;
+    return;
+  }
+
+  if(draftWaiver.signatureType === 'digital'){
+    const signedDate = new Date(draftWaiver.signedAt).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+    box.innerHTML = `
+      <div class="mono" style="font-size:12.5px; color:var(--paper-text); margin-bottom:8px;">
+        ✓ Signed by ${escapeHtml(draftWaiver.signerName)} on ${signedDate} (${escapeHtml(draftWaiver.version)})
+      </div>
+      <button type="button" class="modal-btn cancel" onclick="clearDraftWaiver()">Clear signature</button>
+    `;
+    return;
+  }
+
+  // physical
+  const count = draftWaiver.photoIds.length;
+  const statusLine = count > 0
+    ? `✓ Signed (${count} photo${count>1?'s':''} attached)`
+    : 'Printed — attach photo once signed';
+  box.innerHTML = `
+    <div class="mono" style="font-size:12.5px; color:${count>0?'var(--paper-text)':'var(--muted)'}; margin-bottom:8px;">${statusLine}</div>
+    <div class="photo-field-grid" id="waiverPhotoGrid" style="margin-bottom:8px;"></div>
+    <div style="display:flex; gap:8px; margin-bottom:8px;">
+      <button type="button" class="btn-photo" onclick="triggerWaiverPhotoInput()">📷 Attach Photo</button>
+      <button type="button" class="btn-photo" onclick="triggerWaiverLibraryInput()">🖼️ Choose Existing</button>
+    </div>
+    <button type="button" class="modal-btn cancel" onclick="clearDraftWaiver()">Clear</button>
+  `;
+  renderWaiverPhotoGrid();
+}
+
+async function renderWaiverPhotoGrid(){
+  const grid = document.getElementById('waiverPhotoGrid');
+  if(!grid || !draftWaiver || draftWaiver.signatureType !== 'physical') return;
+  grid.innerHTML = '';
+  for(const id of draftWaiver.photoIds){
+    const wrap = document.createElement('div');
+    wrap.className = 'photo-thumb-wrap';
+    wrap.innerHTML = `<button type="button" class="remove-x" onclick="event.stopPropagation(); removeWaiverPhoto('${id}')">×</button>`;
+    // context passed as null (not 'draft' or an entry id) — those are
+    // reserved by setCoverPhoto() to reorder draftPhotos/entry.photos
+    // specifically; reusing either here would silently corrupt the
+    // regular photo list with waiver photo ids. "Cover photo" has no
+    // meaning for a signed document anyway, so null is a safe no-op.
+    wrap.onclick = (ev)=>{ if(ev.target.classList.contains('remove-x')) return; openLightbox(id, draftWaiver.photoIds, null); };
+    grid.appendChild(wrap);
+    const url = await getPhotoUrl(id);
+    if(url) wrap.style.backgroundImage = `url(${url})`;
+  }
+}
+async function removeWaiverPhoto(id){
+  if(!draftWaiver || draftWaiver.signatureType !== 'physical') return;
+  draftWaiver.photoIds = draftWaiver.photoIds.filter(p=>p!==id);
+  await idbDelete('photos', id);
+  delete photoUrlCache[id];
+  renderWaiverStatusBox();
+}
+
+function triggerWaiverPhotoInput(){
+  document.getElementById('hiddenWaiverPhotoInput').click();
+}
+function triggerWaiverLibraryInput(){
+  document.getElementById('hiddenWaiverLibraryInput').click();
+}
+async function handleWaiverPhotoFiles(event){
+  if(!draftWaiver || draftWaiver.signatureType !== 'physical') return;
+  const files = Array.from(event.target.files || []);
+  let failed = 0;
+  for(const file of files){
+    const id = photoId();
+    try{
+      const blob = await compressImage(file);
+      await idbPut('photos', {id, blob, mimeType: 'image/jpeg', filename: id + '.jpg'});
+      draftWaiver.photoIds.push(id);
+    }catch(err){
+      console.error('Waiver photo save failed', err);
+      failed++;
+    }
+  }
+  event.target.value = '';
+  renderWaiverStatusBox();
+  if(failed > 0){
+    await showAlert(`${failed} photo(s) couldn't be saved — your device may be low on storage. Any that did save are fine; free up space for the rest.`);
+  }
+}
+document.getElementById('hiddenWaiverPhotoInput').addEventListener('change', handleWaiverPhotoFiles);
+document.getElementById('hiddenWaiverLibraryInput').addEventListener('change', handleWaiverPhotoFiles);
+
+function openWaiverSign(){
+  const scrollEl = document.getElementById('waiverTextScroll');
+  scrollEl.textContent = buildWaiverText(CURRENT_WAIVER_VERSION, readLiveEntryFieldsForWaiver());
+  document.getElementById('f_waiverAgree').checked = false;
+  document.getElementById('f_waiverSignerName').value = '';
+  document.getElementById('waiverSignBtn').disabled = true;
+  document.getElementById('waiverSignOverlay').classList.add('open');
+  // If the text already fits without scrolling (short text, tall screen),
+  // there's nothing to scroll to — the scroll handler would otherwise
+  // never fire and the checkbox would stay disabled forever.
+  const alreadyFits = scrollEl.scrollHeight <= scrollEl.clientHeight + 8;
+  document.getElementById('f_waiverAgree').disabled = !alreadyFits;
+  document.getElementById('waiverAgreeText').textContent = alreadyFits
+    ? 'I have read and agree to the terms above'
+    : 'Scroll to read the full agreement above';
+}
+function closeWaiverSign(){
+  document.getElementById('waiverSignOverlay').classList.remove('open');
+}
+// Requires actually scrolling the text to the bottom before the
+// agreement checkbox is even selectable — a cheap, real way to show the
+// person had a genuine chance to read it, not just a rubber-stamp click.
+function onWaiverScroll(){
+  const el = document.getElementById('waiverTextScroll');
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 8;
+  if(atBottom && document.getElementById('f_waiverAgree').disabled){
+    document.getElementById('f_waiverAgree').disabled = false;
+    document.getElementById('waiverAgreeText').textContent = 'I have read and agree to the terms above';
+  }
+}
+function onWaiverFieldChange(){
+  const agreed = document.getElementById('f_waiverAgree').checked;
+  const name = document.getElementById('f_waiverSignerName').value.trim();
+  document.getElementById('waiverSignBtn').disabled = !(agreed && name);
+}
+async function confirmWaiverSign(){
+  const name = document.getElementById('f_waiverSignerName').value.trim();
+  if(!name || !document.getElementById('f_waiverAgree').checked) return;
+  draftWaiver = {
+    version: CURRENT_WAIVER_VERSION,
+    signatureType: 'digital',
+    signedAt: Date.now(),
+    signerName: name
+  };
+  closeWaiverSign();
+  renderWaiverStatusBox();
+  await showAlert('Thank you for trusting us with your equipment!', {okLabel: 'Continue'});
+}
+
+// If a physical waiver is already in progress (photos already attached),
+// re-tapping this keeps that state — only starts a fresh record from
+// scratch or from digital. Reprinting a blank copy is harmless either way.
+async function printForPhysicalSignature(){
+  if(!draftWaiver || draftWaiver.signatureType !== 'physical'){
+    draftWaiver = {version: CURRENT_WAIVER_VERSION, signatureType: 'physical', printedAt: Date.now(), photoIds: []};
+    renderWaiverStatusBox();
+  }
+  renderPrintableWaiver(draftWaiver.version, readLiveEntryFieldsForWaiver(), null);
+  window.print();
+}
+
+function clearDraftWaiver(){
+  if(draftWaiver && draftWaiver.signatureType === 'physical'){
+    for(const id of draftWaiver.photoIds){
+      idbDelete('photos', id);
+      delete photoUrlCache[id];
+    }
+  }
+  draftWaiver = null;
+  renderWaiverStatusBox();
+}
+
+// Shared by both print paths (blank-for-physical-signing, and reprinting
+// an already-digitally-signed entry) — signatureHTML is null for a blank
+// physical copy (prints an empty line), or the rendered typed-signature
+// block for a digital one.
+function renderPrintableWaiver(version, fields, signatureHTML){
+  const text = buildWaiverText(version, fields);
+  document.getElementById('printableWaiver').innerHTML = `
+    <div class="print-waiver-body">${escapeHtml(text)}</div>
+    <div class="print-signature-block">
+      ${signatureHTML || `<div class="print-sig-line">&nbsp;</div><div class="print-sig-label">Customer Signature — Date: ______________</div>`}
+    </div>
+  `;
+}
+
+// Reprints an already-saved, digitally-signed entry — pulls the entry's
+// own fields and the *exact* wording it was actually signed under
+// (entry.waiver.version), not necessarily the current live text if it's
+// been revised since. Physical-signature entries have no text to
+// reprint this way — see waiverDetailSectionHTML(), which shows their
+// attached photos directly instead.
+function printWaiver(entryId){
+  const entry = entries.find(e=>e.id===entryId);
+  if(!entry || !entry.waiver || entry.waiver.signatureType !== 'digital') return;
+  const signedDate = new Date(entry.waiver.signedAt).toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'});
+  const signatureHTML = `
+    <div class="print-sig-line"><span class="print-signature-script">${escapeHtml(entry.waiver.signerName)}</span></div>
+    <div class="print-sig-label">Customer Signature — Signed electronically ${signedDate}</div>
+  `;
+  renderPrintableWaiver(entry.waiver.version, entry, signatureHTML);
+  window.print();
+}
+
+function waiverDetailSectionHTML(entry){
+  if(!entry.waiver) return '';
+  if(entry.waiver.signatureType === 'digital'){
+    const signedDate = new Date(entry.waiver.signedAt).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+    return `<div class="detail-section"><div class="drawer-label">Waiver</div><p>✓ Signed by ${escapeHtml(entry.waiver.signerName)} on ${signedDate} (${escapeHtml(entry.waiver.version)})</p><button type="button" class="modal-btn cancel" style="margin-top:6px;" onclick="printWaiver('${entry.id}')">Print / View Waiver</button></div>`;
+  }
+  const photoIds = entry.waiver.photoIds || [];
+  const count = photoIds.length;
+  const printedDate = new Date(entry.waiver.printedAt).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+  return `<div class="detail-section"><div class="drawer-label">Waiver</div><p>${count > 0 ? `✓ Signed (${count} photo${count>1?'s':''} attached)` : `Printed ${printedDate} — no photo attached yet`}</p><div class="photo-field-grid" id="waiverDetailPhotoGrid"></div></div>`;
+}
+async function renderWaiverDetailPhotoGrid(photoIds){
+  const grid = document.getElementById('waiverDetailPhotoGrid');
+  if(!grid) return;
+  grid.innerHTML = '';
+  for(const id of photoIds){
+    const wrap = document.createElement('div');
+    wrap.className = 'photo-thumb-wrap';
+    wrap.onclick = ()=>openLightbox(id, photoIds, null); // null context — see renderWaiverPhotoGrid
+    grid.appendChild(wrap);
+    const url = await getPhotoUrl(id);
+    if(url) wrap.style.backgroundImage = `url(${url})`;
+  }
+}
+
 // ---------- View history (back button closes project/photo, not the app) ----------
 let sheetIsNewUnsaved = false;
 function pushView(view){ history.pushState({view}, ''); }
@@ -1343,11 +1677,12 @@ function openSheet(entry){
   sheetIsNewUnsaved = !entry;
   const e = entry || {title:'',engineBrand:'',engineModel:'',engineCode:'',source:'dad',causes:'',steps:'',fix:'',notes:'',photos:[],
     customerName:'',customerPhone:'',equipmentBrand:'',equipmentModel:'',equipmentSerial:'',equipmentCategory:'',dateReceived:'',primaryComplaint:'',customerRequest:'',
-    partsUsed:'',checklist:{},status:'needs-diagnosis',showAllFields:false};
+    partsUsed:'',checklist:{},status:'needs-diagnosis',showAllFields:false,waiver:null};
 
   liveChecklistState = {...(e.checklist||{})};
 
   draftPhotos = entry && entry.photos ? [...entry.photos] : [];
+  draftWaiver = entry && entry.waiver ? {...entry.waiver} : null;
 
   document.getElementById('sheetContent').innerHTML = `
     <div class="sheet-topbar">
@@ -1452,6 +1787,11 @@ function openSheet(entry){
       </div>
     </div>
 
+    <div class="form-section">
+      <div class="form-section-title">Waiver</div>
+      <div id="waiverStatusBox"></div>
+    </div>
+
     <div class="field">
       <label>Photos</label>
       <div class="photo-actions-row">
@@ -1499,6 +1839,7 @@ function openSheet(entry){
   pushView('sheet');
   document.getElementById('sheetOverlay').classList.add('open');
   renderDraftPhotoGrid();
+  renderWaiverStatusBox();
   renderChecklistGrid();
   renderChecklistPreview();
 }
@@ -1712,7 +2053,8 @@ async function saveEntry(){
     dateReceived: document.getElementById('f_dateReceived').value,
     primaryComplaint: document.getElementById('f_primaryComplaint').value.trim(),
     customerRequest: document.getElementById('f_customerRequest').value.trim(),
-    checklist: getChecklistState()
+    checklist: getChecklistState(),
+    waiver: draftWaiver
   };
 
   let entry;
@@ -1805,6 +2147,7 @@ function openDetail(id){
     ${entry.partsUsed ? `<div class="detail-section"><div class="drawer-label">Parts</div><p>${escapeHtml(entry.partsUsed)}</p></div>` : ''}
     ${entry.notes ? `<div class="detail-section"><div class="drawer-label">Notes</div><p>${escapeHtml(entry.notes)}</p></div>` : ''}
     ${hasPhotos ? `<div class="detail-section"><div class="drawer-label">Photos</div><div class="photo-field-grid" id="detailPhotoGrid"></div></div>` : ''}
+    ${waiverDetailSectionHTML(entry)}
     <div class="detail-actions">
       <button class="btn-full delete" onclick="deleteEntry('${entry.id}')">Delete</button>
       <button class="btn-full edit" onclick='openSheet(${JSON.stringify(entry).replace(/'/g,"&#39;")})'>Edit</button>
@@ -1813,6 +2156,7 @@ function openDetail(id){
   pushView('sheet');
   document.getElementById('sheetOverlay').classList.add('open');
   if(hasPhotos) renderDetailPhotoGrid(entry.photos, entry.id);
+  if(entry.waiver && entry.waiver.signatureType === 'physical' && (entry.waiver.photoIds||[]).length) renderWaiverDetailPhotoGrid(entry.waiver.photoIds);
 }
 
 async function renderDetailPhotoGrid(photos, entryId){
@@ -1834,19 +2178,25 @@ async function deleteEntry(id){
   if(!ok) return;
   const entry = entries.find(e=>e.id===id);
   if(entry){
-    if(entry.photos){
+    const ownWaiverPhotoIds = (entry.waiver && entry.waiver.signatureType === 'physical') ? (entry.waiver.photoIds || []) : [];
+    const ownPhotoIds = [...(entry.photos || []), ...ownWaiverPhotoIds];
+    if(ownPhotoIds.length){
       // Photo IDs aren't reserved to one entry — a conflict-duplicate entry
       // (see mergeEntries()) is a copy of an OLDER version of another entry
-      // and very often still lists the same photo IDs as the surviving
-      // version. Deleting this entry's blobs without checking would
-      // silently pull photos out from under whichever other entry still
-      // needs them. Build the "still needed elsewhere" set first.
+      // and very often still lists the same photo IDs — regular or waiver
+      // — as the surviving version. Deleting this entry's blobs without
+      // checking would silently pull photos out from under whichever
+      // other entry still needs them. Build the "still needed elsewhere"
+      // set first, across both regular and waiver photos.
       const stillReferenced = new Set();
       for(const other of entries){
         if(other.id === id) continue;
         (other.photos || []).forEach(pid => stillReferenced.add(pid));
+        if(other.waiver && other.waiver.signatureType === 'physical'){
+          (other.waiver.photoIds || []).forEach(pid => stillReferenced.add(pid));
+        }
       }
-      for(const pid of entry.photos){
+      for(const pid of ownPhotoIds){
         if(stillReferenced.has(pid)) continue; // another entry still needs this blob
         await idbDelete('photos', pid);
         delete photoUrlCache[pid];
@@ -1857,6 +2207,7 @@ async function deleteEntry(id){
     // instead of the entry silently reappearing next time they sync.
     entry.deleted = true;
     entry.photos = [];
+    if(entry.waiver && entry.waiver.signatureType === 'physical') entry.waiver.photoIds = [];
     entry.updatedAt = Date.now();
     await saveEntryToDB(entry);
   }

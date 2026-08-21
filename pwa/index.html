@@ -79,6 +79,34 @@
 </div>
 <input type="file" id="hiddenRestoreInput" accept="application/json" style="display:none">
 
+<div class="modal-overlay" id="waiverSignOverlay">
+  <div class="modal-box waiver-box">
+    <div class="settings-header">
+      <h2>Sign Waiver</h2>
+      <button class="modal-btn cancel" onclick="closeWaiverSign()">Cancel</button>
+    </div>
+    <div class="mono" style="font-size:11px; color:var(--muted); margin-bottom:10px;">
+      Template only — not legal advice. Have this reviewed by an
+      Idaho-licensed attorney before relying on it with real customers.
+    </div>
+    <div class="waiver-text-scroll" id="waiverTextScroll" onscroll="onWaiverScroll()"></div>
+    <label class="checklist-check" style="margin-top:14px;" id="waiverAgreeLabel">
+      <input type="checkbox" id="f_waiverAgree" disabled onchange="onWaiverFieldChange()">
+      <span id="waiverAgreeText">Scroll to read the full agreement above</span>
+    </label>
+    <div class="field" style="margin-top:12px;">
+      <label>Customer Signature (type full legal name)</label>
+      <input type="text" id="f_waiverSignerName" placeholder="Full legal name" oninput="onWaiverFieldChange()">
+    </div>
+    <div style="display:flex; gap:10px; margin-top:16px;">
+      <button class="modal-btn cancel" onclick="closeWaiverSign()">Cancel</button>
+      <button class="modal-btn confirm" id="waiverSignBtn" onclick="confirmWaiverSign()" disabled>Sign</button>
+    </div>
+  </div>
+</div>
+
+<div id="printableWaiver"></div>
+
 <div id="iosBanner">
   Add to your Home Screen: tap Share, then "Add to Home Screen".
   <button onclick="document.getElementById('iosBanner').style.display='none'">Dismiss</button>
@@ -130,6 +158,8 @@
 
 <input type="file" id="hiddenPhotoInput" accept="image/*" capture="environment" multiple style="display:none">
 <input type="file" id="hiddenLibraryInput" accept="image/*" multiple style="display:none">
+<input type="file" id="hiddenWaiverPhotoInput" accept="image/*" capture="environment" multiple style="display:none">
+<input type="file" id="hiddenWaiverLibraryInput" accept="image/*" multiple style="display:none">
 
 <script src="app.js"></script>
 </body>
