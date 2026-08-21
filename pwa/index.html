@@ -119,6 +119,7 @@
 <div class="chip-scroll" id="statusFilters">
   <button class="chip active" data-status="all" onclick="setStatusFilter('all')">All</button>
   <button class="chip" data-status="needs-diagnosis" onclick="setStatusFilter('needs-diagnosis')">Needs Diagnosis</button>
+  <button class="chip" data-status="waiting-quote" onclick="setStatusFilter('waiting-quote')">Waiting on Quote</button>
   <button class="chip" data-status="waiting-parts" onclick="setStatusFilter('waiting-parts')">Waiting on Parts</button>
   <button class="chip" data-status="in-progress" onclick="setStatusFilter('in-progress')">In Progress</button>
   <button class="chip" data-status="complete" onclick="setStatusFilter('complete')">Complete</button>
@@ -126,9 +127,9 @@
 <div class="chip-scroll" id="sourceFilters">
   <button class="chip active" data-source="all" onclick="setSourceFilter('all')">All</button>
   <button class="chip" data-source="dad" onclick="setSourceFilter('dad')">Dad</button>
-  <button class="chip" data-source="experience" onclick="setSourceFilter('experience')">My experience</button>
-  <button class="chip" data-source="ai" onclick="setSourceFilter('ai')">AI-assisted</button>
-  <button class="chip" data-source="manual" onclick="setSourceFilter('manual')">Service manual</button>
+  <button class="chip" data-source="experience" onclick="setSourceFilter('experience')">Brian</button>
+  <button class="chip" data-source="dad-brian" onclick="setSourceFilter('dad-brian')">Dad/Brian</button>
+  <button class="chip" data-source="other" onclick="setSourceFilter('other')">Other</button>
 </div>
 <div class="chip-scroll" id="categoryFilters"></div>
 <div class="stat-line" id="statLine"></div>

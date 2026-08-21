@@ -173,7 +173,8 @@ See the root `README.md` for repo structure and deployment steps, and
 - **Entry fields, both apps, identical names on purpose** (so a sync
   layer never has to translate): `title` (UI-labeled "Diagnosis" in the
   PWA), `primaryComplaint` (PWA-only), `engineBrand`, `engineModel`,
-  `engineCode`, `source`, `causes`, `steps`, `fix`, `partsUsed`
+  `engineCode`, `source` (UI-labeled "Performed By" in the PWA — see PWA
+  specifics), `causes`, `steps`, `fix`, `partsUsed`
   (UI-labeled "Parts"), `notes`, `photos[]`, `customerName`,
   `customerPhone`, `equipmentBrand`, `equipmentModel`, `equipmentSerial`,
   `equipmentCategory` (PWA-only so far), `dateReceived`,
@@ -271,6 +272,23 @@ See the root `README.md` for repo structure and deployment steps, and
   entirely regardless of category. Checklist data for a currently-hidden
   field is never lost — `liveChecklistState` holds every key's
   `{checked, note}` independent of which rows are rendered.
+- **`source`, UI-labeled "Performed By" (field name unchanged).**
+  Reflects the app's shift toward being an active work-order tool, not
+  just a knowledge log — the field now tracks who did the work, not
+  where the knowledge came from. `SOURCE_LABELS` values: `dad`→"Dad"
+  (unchanged), `experience`→**"Brian"** (label-only change, same key —
+  existing entries need no data change), plus two new keys/options,
+  `dad-brian`→"Dad/Brian" and `other`→"Other" (replacing the old
+  `ai`/`manual` options, which had zero real entries using them, so no
+  legacy-value fallback was needed). Kept as a single-select
+  dropdown rather than checkboxes deliberately — "Dad/Brian" existing as
+  its own discrete option only makes sense for single-select; checkboxes
+  would make it redundant. Default for a new entry stays `dad`. Card
+  badge (`source-mark`) and stat line render `SOURCE_LABELS[entry.source]`
+  live at render time, so relabeling here updated every existing card
+  immediately with no migration. Status filter chip row also had a
+  missing "Waiting on Quote" chip added at the same time (the dropdown/
+  badge already had it; the filter chip row didn't).
 - **Checklist items** (`CHECKLIST_ITEMS`, 12 items): Fuel Additive was
   removed (recommended verbally, not tracked as a checklist item — old
   entries' `fuelAdditive` data is untouched, just no longer rendered).
@@ -297,7 +315,8 @@ See the root `README.md` for repo structure and deployment steps, and
   expanded on open (no persisted state — a per-session scroll-reduction
   convenience). Generic helper, so wrapping additional sections later is
   a one-line change.
-- **Add/edit form field order:** Status + Source (top row) → Customer →
+- **Add/edit form field order:** Status + Performed By (top row, field
+  name still `source`) → Customer →
   Equipment → Photos → "The Work" (Likely Causes, Diagnostic Steps,
   Service Checklist, Diagnosis, Parts, The Fix) → Notes. Photos sit right
   after Equipment since they're usually taken while looking at the

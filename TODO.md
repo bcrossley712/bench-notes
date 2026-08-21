@@ -44,6 +44,12 @@ rediscovered from scratch if desktop is ever un-halted, not live todos.
       entry — confirm the kept entry's photos survive
 - [ ] Save/attach a photo with device storage genuinely low — confirm a
       message shows instead of silent failure
+- [ ] "Performed By" (was "Source"): dropdown shows Dad/Brian/Dad-Brian/
+      Other, defaults to Dad on a new entry, existing entries tagged
+      `experience` now show "Brian" on their card with no data change
+      needed, and the Dad-Brian/Other filter chips work
+- [ ] Status filter row: confirm the newly-added "Waiting on Quote" chip
+      filters correctly alongside the other four
 
 ## Mobile PWA
 - [ ] Send the link to Dad, test Safari → Share → Add to Home Screen on his iPhone

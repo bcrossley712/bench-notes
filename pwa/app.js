@@ -1066,7 +1066,7 @@ let editingId = null;
 let draftPhotos = [];         // array of photo ids attached to entry being edited
 let photoUrlCache = {};       // photo id -> object URL
 
-const SOURCE_LABELS = {dad:'From Dad', experience:'My experience', ai:'AI-assisted', manual:'Service manual'};
+const SOURCE_LABELS = {dad:'Dad', experience:'Brian', 'dad-brian':'Dad/Brian', other:'Other'};
 const STATUS_LABELS = {
   'needs-diagnosis': 'Needs Diagnosis',
   'waiting-quote': 'Waiting on Quote',
@@ -1701,12 +1701,12 @@ function openSheet(entry){
         </select>
       </div>
       <div class="field">
-        <label>Source</label>
+        <label>Performed By</label>
         <select id="f_source">
-          <option value="dad" ${e.source==='dad'?'selected':''}>From Dad</option>
-          <option value="experience" ${e.source==='experience'?'selected':''}>My experience</option>
-          <option value="ai" ${e.source==='ai'?'selected':''}>AI-assisted</option>
-          <option value="manual" ${e.source==='manual'?'selected':''}>Service manual</option>
+          <option value="dad" ${e.source==='dad'?'selected':''}>Dad</option>
+          <option value="experience" ${e.source==='experience'?'selected':''}>Brian</option>
+          <option value="dad-brian" ${e.source==='dad-brian'?'selected':''}>Dad/Brian</option>
+          <option value="other" ${e.source==='other'?'selected':''}>Other</option>
         </select>
       </div>
     </div>
