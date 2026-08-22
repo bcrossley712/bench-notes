@@ -87,6 +87,17 @@
   #waiverSignOverlay input[type=text]{background:#FFFFFF; border-color:#D8D2C4; color:#2A2420;}
   #waiverSignOverlay .checklist-check{color:#2A2420;}
   #waiverSignOverlay .modal-btn.cancel{color:#6b6459; border-color:#D8D2C4;}
+
+  /* Thank-you confirmation: stays stacked on top of the still-open waiver
+     screen (not the app underneath) — closeWaiverSign() only runs after
+     this is dismissed. Light-mode like the waiver screen it sits over;
+     z-index above .modal-overlay's default 80 so it stacks correctly when
+     both are open at once. */
+  #waiverThankYouOverlay{z-index:90; background:#00000090;}
+  #waiverThankYouOverlay .waiver-box{
+    max-width:340px; height:auto; border-radius:8px; border-top:3px solid var(--orange);
+    background:#F5F2EA; color:#2A2420; padding:24px;
+  }
   .settings-header h2{font-family:'Oswald',sans-serif; font-size:18px; text-transform:uppercase;}
   .settings-header .modal-btn{padding:6px 12px; font-size:11px;}
   .settings-section{margin-bottom:20px; padding-bottom:20px; border-bottom:1px solid var(--rule);}

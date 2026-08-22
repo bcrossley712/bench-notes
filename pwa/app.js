@@ -1383,9 +1383,20 @@ async function confirmWaiverSign(){
     signedAt: Date.now(),
     signerName: name
   };
-  closeWaiverSign();
   renderWaiverStatusBox();
-  await showAlert('Thank you for trusting us with your equipment!', {okLabel: 'Continue'});
+  // Thank-you stacks on top of the still-open waiver screen rather than
+  // dismissing it first — the customer never sees the app underneath.
+  await showWaiverThankYou();
+  closeWaiverSign();
+}
+function showWaiverThankYou(){
+  return new Promise(resolve=>{
+    const overlay = document.getElementById('waiverThankYouOverlay');
+    const btn = document.getElementById('waiverThankYouBtn');
+    btn.onclick = ()=>{ overlay.classList.remove('open'); resolve(); };
+    overlay.classList.add('open');
+    btn.focus();
+  });
 }
 
 // If a physical waiver is already in progress (photos already attached),
