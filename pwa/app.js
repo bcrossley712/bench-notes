@@ -1411,8 +1411,17 @@ async function printForPhysicalSignature(){
   window.print();
 }
 
-function clearDraftWaiver(){
-  if(draftWaiver && draftWaiver.signatureType === 'physical'){
+async function clearDraftWaiver(){
+  if(!draftWaiver) return;
+  const isPhysical = draftWaiver.signatureType === 'physical';
+  const ok = await showConfirm(
+    isPhysical
+      ? 'Remove this waiver signature and delete the attached photo(s)? This cannot be undone.'
+      : 'Remove this customer\'s signature? They\'ll need to sign again — this cannot be undone.',
+    {confirmLabel:'Remove Signature', cancelLabel:'Keep Signature'}
+  );
+  if(!ok) return;
+  if(isPhysical){
     for(const id of draftWaiver.photoIds){
       idbDelete('photos', id);
       delete photoUrlCache[id];
