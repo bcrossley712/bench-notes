@@ -1340,7 +1340,7 @@ document.getElementById('hiddenWaiverLibraryInput').addEventListener('change', h
 
 function openWaiverSign(){
   const scrollEl = document.getElementById('waiverTextScroll');
-  scrollEl.textContent = buildWaiverText(CURRENT_WAIVER_VERSION, readLiveEntryFieldsForWaiver());
+  scrollEl.innerHTML = styledWaiverHtml(buildWaiverText(CURRENT_WAIVER_VERSION, readLiveEntryFieldsForWaiver()));
   scrollEl.scrollTop = 0;
   document.getElementById('f_waiverAgree').checked = false;
   document.getElementById('f_waiverSignerName').value = '';
@@ -1435,10 +1435,22 @@ async function clearDraftWaiver(){
 // an already-digitally-signed entry) — signatureHTML is null for a blank
 // physical copy (prints an empty line), or the rendered typed-signature
 // block for a digital one.
+// Wraps just the business name (first line) and numbered section headers
+// ("1. Authorization...") in colored spans for the printed copy — purely
+// visual, applied on top of the already-built text; the underlying
+// waiver text itself (what's shown while digitally signing, and what's
+// stored/versioned) is untouched.
+function styledWaiverHtml(text){
+  return escapeHtml(text).split('\n').map((line, i)=>{
+    if(i === 0) return `<span class="print-business-name">${line}</span>`;
+    if(/^\d+\.\s/.test(line)) return `<span class="print-section-header">${line}</span>`;
+    return line;
+  }).join('\n');
+}
 function renderPrintableWaiver(version, fields, signatureHTML){
   const text = buildWaiverText(version, fields);
   document.getElementById('printableWaiver').innerHTML = `
-    <div class="print-waiver-body">${escapeHtml(text)}</div>
+    <div class="print-waiver-body">${styledWaiverHtml(text)}</div>
     <div class="print-signature-block">
       ${signatureHTML || `<div class="print-sig-line">&nbsp;</div><div class="print-sig-label">Customer Signature — Date: ______________</div>`}
     </div>

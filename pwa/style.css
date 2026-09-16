@@ -87,6 +87,8 @@
   #waiverSignOverlay input[type=text]{background:#FFFFFF; border-color:#D8D2C4; color:#2A2420;}
   #waiverSignOverlay .checklist-check{color:#2A2420;}
   #waiverSignOverlay .modal-btn.cancel{color:#6b6459; border-color:#D8D2C4;}
+  #waiverSignOverlay .print-business-name{color:#1a4a8a;}
+  #waiverSignOverlay .print-section-header{color:#1a4a8a;}
 
   /* Thank-you confirmation: stays stacked on top of the still-open waiver
      screen (not the app underneath) — closeWaiverSign() only runs after
@@ -276,16 +278,23 @@
      of the app. */
   #printableWaiver{display:none;}
   @media print{
-    body *{visibility:hidden;}
-    #printableWaiver, #printableWaiver *{visibility:visible;}
+    html, body{height:auto !important; overflow:visible !important;}
+    /* display:none actually removes these from layout, unlike
+       visibility:hidden — which was the bug here: the hidden board/sheet/
+       overlays still occupied their full height, so printing paginated
+       across that entire hidden layout instead of just the one-page
+       waiver, producing many extra blank pages. */
+    body > *:not(#printableWaiver){display:none !important;}
     #printableWaiver{
-      display:block; position:absolute; top:0; left:0; width:100%;
-      padding:24px; background:#fff; color:#111;
-      font-family:'IBM Plex Sans',sans-serif; font-size:13px; line-height:1.5;
+      display:block !important; position:static; width:100%;
+      padding:14px; background:#fff; color:#111;
+      font-family:'IBM Plex Sans',sans-serif; font-size:11px; line-height:1.3;
     }
-    #printableWaiver .print-waiver-body{white-space:pre-wrap; margin-bottom:24px;}
-    #printableWaiver .print-signature-block{margin-top:24px;}
-    #printableWaiver .print-sig-line{border-bottom:1px solid #333; min-height:34px; display:flex; align-items:flex-end; padding-bottom:2px;}
-    #printableWaiver .print-signature-script{font-family:'Brush Script MT', 'Segoe Script', cursive; font-size:22px;}
-    #printableWaiver .print-sig-label{font-size:11px; color:#555; margin:2px 0 18px;}
+    #printableWaiver .print-waiver-body{white-space:pre-wrap; margin-bottom:10px;}
+    #printableWaiver .print-business-name{color:#1a4a8a;}
+    #printableWaiver .print-section-header{color:#1a4a8a;}
+    #printableWaiver .print-signature-block{margin-top:8px;}
+    #printableWaiver .print-sig-line{border-bottom:1px solid #333; min-height:24px; display:flex; align-items:flex-end; padding-bottom:2px;}
+    #printableWaiver .print-signature-script{font-family:'Brush Script MT', 'Segoe Script', cursive; font-size:18px;}
+    #printableWaiver .print-sig-label{font-size:10px; color:#555; margin:2px 0 6px;}
   }
