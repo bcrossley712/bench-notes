@@ -1861,7 +1861,9 @@ function openSheet(entry){
       </div>
       <div class="collapsible-body">
         <div id="intakePhotoStatus" class="intake-auto-row"></div>
-        <div class="checklist-grid" id="intakeChecklistGrid"></div>
+        <div class="field" style="margin-bottom:0;">
+          <div class="checklist-grid" id="intakeChecklistGrid"></div>
+        </div>
       </div>
     </div>
 
