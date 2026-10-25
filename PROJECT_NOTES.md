@@ -180,7 +180,9 @@ See the root `README.md` for repo structure and deployment steps, and
   `equipmentCategory` (PWA-only so far), `dateReceived`,
   `customerRequest`, `checklist` (object keyed by item id, e.g.
   `sparkTest: {checked, note}` — see `CHECKLIST_ITEMS`, currently 12
-  items), `showAllFields` (PWA-only), `status` (`needs-diagnosis` /
+  items), `intakeChecklist` (PWA-only, same `{checked, note}` shape,
+  separate object — see `INTAKE_CHECKLIST_ITEMS`), `showAllFields`
+  (PWA-only), `status` (`needs-diagnosis` /
   `waiting-quote` / `waiting-parts` / `in-progress` / `complete`,
   PWA-only), `completedAt` (PWA-only), `waiver` (PWA-only, object or
   null — see "Waiver feature" below), `completed`, `createdAt`,
@@ -189,7 +191,7 @@ See the root `README.md` for repo structure and deployment steps, and
   conflict's duplicate copy). **If you add a field to one app, add it to
   the other at the same time** — current PWA-only gaps
   (`equipmentCategory`/`equipmentBrand`/`engineBrand`/`showAllFields`/
-  `waiting-quote`/`primaryComplaint`/`waiver`) aren't things to actively
+  `waiting-quote`/`primaryComplaint`/`waiver`/`intakeChecklist`) aren't things to actively
   close right now given the desktop halt.
 - **Photo order is meaningful** — `photos[0]` is always the cover/
   thumbnail; both apps rely on this instead of a separate cover field.
@@ -309,21 +311,38 @@ See the root `README.md` for repo structure and deployment steps, and
   run longer than a title should). Card `<h3>` headline and detail-drawer
   header both read `primaryComplaint || title || customerName ||
   'Untitled entry'`. **PWA-only** — see field list above.
-- **Collapsible form sections:** Customer, Equipment, and Service
-  Checklist headers in the add/edit sheet are tappable
-  (`toggleFormSection()`) to collapse/expand; all three always start
-  expanded on open (no persisted state — a per-session scroll-reduction
-  convenience). Generic helper, so wrapping additional sections later is
-  a one-line change.
+- **Collapsible form sections, two levels:** three outer "major"
+  sections, **Intake**, **Photos**, and **The Work**, each collapse as a
+  whole; inside them, each group (Customer, Equipment, Waiver, Intake Checklist;
+  Service Checklist) collapses on its own. All via the one generic
+  `toggleFormSection()` helper (toggles the header's next sibling), so
+  nesting needs no extra code. No persisted state. Everything opens
+  expanded **except** Intake, which starts collapsed when reopening an
+  existing entry whose status is past Needs Diagnosis (intake is done —
+  land on The Work). New entries always open fully expanded.
 - **Add/edit form field order:** Status + Performed By (top row, field
-  name still `source`) → Customer →
-  Equipment → Photos → "The Work" (Likely Causes, Diagnostic Steps,
-  Service Checklist, Diagnosis, Parts, The Fix) → Notes. Photos sit right
-  after Equipment since they're usually taken while looking at the
-  equipment, not at the end of data entry. Diagnosis (`title`)
+  name still `source`, deliberately outside Intake — job-level, not
+  intake) → **Intake** (Customer → Equipment → Waiver → Intake
+  Checklist) → **Photos** → **The Work** (Likely Causes, Diagnostic
+  Steps, Service Checklist, Diagnosis, Parts, The Fix) → Notes. Photos
+  are their own section between Intake and The Work, not inside Intake —
+  they're taken at the counter *and* mid-repair, so they belong to the
+  whole job (and stay visible when Intake auto-collapses). Diagnosis (`title`)
   deliberately sits *after* Likely Causes/Diagnostic Steps/Checklist —
   it's the concise conclusion written once the rest is worked through,
   not a first-guess symptom field.
+- **Intake Checklist** (`intakeChecklist`, `INTAKE_CHECKLIST_ITEMS`, 8
+  items: Starts, Oil Level, Blade Condition, Fuel Tank, Obvious Leaks,
+  Accessories Left, Existing Damage, Payment Notification) — condition-
+  on-arrival checks, same checkbox + optional-note rows as the Service
+  Checklist, but one flat list (no category narrowing) and a separate
+  object so intake items never land in The Fix block. Expected to grow —
+  add items to the constant; keys may reuse a Service Checklist key name
+  (e.g. `fuelTank`) since they live in different objects. A read-only
+  "Photos — N attached" auto line at its top is computed from
+  `draftPhotos` (never stored); no auto line for the waiver, since the
+  Waiver group already shows its own status. Checked items show as an
+  "Intake Checklist" block in the detail drawer and are searchable.
 - **Board card:** Category filter chip row (`categoryFilter`/
   `renderCategoryFilters()`) replaced the old Engine filter; card badge
   shows `equipmentCategory` (`.category-badge`, was `.engine-badge`).
@@ -446,8 +465,9 @@ attorney review before real customers use this.
   name, equipment, serial, date, and reported problem all live-merged
   in, never a generic template shown separately from the specifics. A
   customer should never see two different versions of "their" waiver.
-- Placement follows the actual counter workflow: Customer → Equipment →
-  **Waiver** → Photos → rest of form. The sign screen is a dedicated
+- Placement follows the actual counter workflow: inside Intake,
+  Customer → Equipment → **Waiver** → Intake Checklist, with Photos
+  right after Intake. The sign screen is a dedicated
   full-screen view with nothing else of the app reachable while it's
   open (the customer physically holds the phone), and ends with "Thank
   you for trusting us with your equipment!" before returning control.

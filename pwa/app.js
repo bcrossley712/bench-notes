@@ -1091,6 +1091,18 @@ const CHECKLIST_ITEMS = [
   ['bladeSharpening','Blade Sharpening']
 ];
 
+// Intake Checklist — condition-on-arrival checks done at the counter,
+// stored in entry.intakeChecklist (same {checked, note} shape as
+// entry.checklist, but deliberately a separate object so intake items never
+// appear in The Fix block). One flat list for every category — no narrowing.
+// Keys may share a name with CHECKLIST_ITEMS (e.g. fuelTank); that's fine,
+// they live in different objects and use a different DOM id prefix (ic_).
+const INTAKE_CHECKLIST_ITEMS = [
+  ['starts','Starts'], ['oilLevel','Oil Level'], ['bladeCondition','Blade Condition'],
+  ['fuelTank','Fuel Tank'], ['obviousLeaks','Obvious Leaks'], ['accessoriesLeft','Accessories Left'],
+  ['existingDamage','Existing Damage'], ['paymentNotification','Payment Notification']
+];
+
 // Every category gets this base set regardless of what else it adds.
 const CHECKLIST_BASE = ['sparkTest','sparkPlug','compressionTest','fuelTank','airFilter','oilChange'];
 
@@ -1646,7 +1658,8 @@ function matchesFilters(entry, q){
     const hay = [entry.title, entry.engineBrand, entry.engineModel, entry.engineCode, entry.causes, entry.steps, entry.fix,
       entry.partsUsed, entry.notes, entry.customerName, entry.customerPhone,
       entry.equipmentBrand, entry.equipmentModel, entry.equipmentSerial, entry.equipmentCategory, entry.primaryComplaint, entry.customerRequest,
-      ...checklistLines(entry.checklist||{})].join(' ').toLowerCase();
+      ...checklistLines(entry.checklist||{}),
+      ...intakeChecklistLines(entry.intakeChecklist||{})].join(' ').toLowerCase();
     if(!hay.includes(q)) return false;
   }
   return true;
@@ -1710,9 +1723,16 @@ function openSheet(entry){
   sheetIsNewUnsaved = !entry;
   const e = entry || {title:'',engineBrand:'',engineModel:'',engineCode:'',source:'dad',causes:'',steps:'',fix:'',notes:'',photos:[],
     customerName:'',customerPhone:'',equipmentBrand:'',equipmentModel:'',equipmentSerial:'',equipmentCategory:'',dateReceived:'',primaryComplaint:'',customerRequest:'',
-    partsUsed:'',checklist:{},status:'needs-diagnosis',showAllFields:false,waiver:null};
+    partsUsed:'',checklist:{},intakeChecklist:{},status:'needs-diagnosis',showAllFields:false,waiver:null};
 
   liveChecklistState = {...(e.checklist||{})};
+  liveIntakeChecklistState = {...(e.intakeChecklist||{})};
+
+  // Intake starts collapsed when reopening an existing entry that's past
+  // Needs Diagnosis — intake is done, so land on The Work. New entries and
+  // entries still awaiting diagnosis open fully expanded. Not persisted.
+  const intakeCollapsed = !!entry && getEntryStatus(entry) !== 'needs-diagnosis';
+  const ic = intakeCollapsed ? ' is-collapsed' : '';
 
   draftPhotos = entry && entry.photos ? [...entry.photos] : [];
   draftWaiver = entry && entry.waiver ? {...entry.waiver} : null;
@@ -1745,6 +1765,12 @@ function openSheet(entry){
     </div>
 
     <div class="form-section">
+      <div class="form-section-title major collapsible${ic}" onclick="toggleFormSection(this)">
+        <span>Intake</span><span class="chevron">▾</span>
+      </div>
+      <div class="collapsible-body${ic}">
+
+    <div class="form-group">
       <div class="form-section-title collapsible" onclick="toggleFormSection(this)">
         <span>Customer</span><span class="chevron">▾</span>
       </div>
@@ -1774,7 +1800,7 @@ function openSheet(entry){
       </div>
     </div>
 
-    <div class="form-section">
+    <div class="form-group">
       <div class="form-section-title collapsible" onclick="toggleFormSection(this)">
         <span>Equipment</span><span class="chevron">▾</span>
       </div>
@@ -1820,22 +1846,46 @@ function openSheet(entry){
       </div>
     </div>
 
-    <div class="form-section">
-      <div class="form-section-title">Waiver</div>
-      <div id="waiverStatusBox"></div>
-    </div>
-
-    <div class="field">
-      <label>Photos</label>
-      <div class="photo-actions-row">
-        <button type="button" class="btn-photo" onclick="triggerPhotoInput()">📷 Take Photo</button>
-        <button type="button" class="btn-photo" onclick="triggerLibraryInput()">🖼️ Choose Existing</button>
+    <div class="form-group">
+      <div class="form-section-title collapsible" onclick="toggleFormSection(this)">
+        <span>Waiver</span><span class="chevron">▾</span>
       </div>
-      <div class="photo-field-grid" id="draftPhotoGrid"></div>
+      <div class="collapsible-body">
+        <div id="waiverStatusBox"></div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <div class="form-section-title collapsible" onclick="toggleFormSection(this)">
+        <span>Intake Checklist</span><span class="chevron">▾</span>
+      </div>
+      <div class="collapsible-body">
+        <div id="intakePhotoStatus" class="intake-auto-row"></div>
+        <div class="checklist-grid" id="intakeChecklistGrid"></div>
+      </div>
+    </div>
+
+      </div>
     </div>
 
     <div class="form-section">
-      <div class="form-section-title">The Work</div>
+      <div class="form-section-title major collapsible" onclick="toggleFormSection(this)">
+        <span>Photos</span><span class="chevron">▾</span>
+      </div>
+      <div class="collapsible-body">
+        <div class="photo-actions-row">
+          <button type="button" class="btn-photo" onclick="triggerPhotoInput()">📷 Take Photo</button>
+          <button type="button" class="btn-photo" onclick="triggerLibraryInput()">🖼️ Choose Existing</button>
+        </div>
+        <div class="photo-field-grid" id="draftPhotoGrid"></div>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="form-section-title major collapsible" onclick="toggleFormSection(this)">
+        <span>The Work</span><span class="chevron">▾</span>
+      </div>
+      <div class="collapsible-body">
       <div class="field"><label>Likely Causes</label><textarea id="f_causes">${escapeHtml(e.causes)}</textarea></div>
       <div class="field"><label>Diagnostic Steps</label><textarea id="f_steps">${escapeHtml(e.steps)}</textarea></div>
 
@@ -1865,6 +1915,7 @@ function openSheet(entry){
         <div id="checklistFixPreview" class="checklist-fix-preview"></div>
         <textarea id="f_fix" placeholder="What fixed the primary complaint">${escapeHtml(e.fix)}</textarea>
       </div>
+      </div>
     </div>
 
     <div class="field"><label>Notes</label><textarea id="f_notes">${escapeHtml(e.notes)}</textarea></div>
@@ -1875,6 +1926,7 @@ function openSheet(entry){
   renderWaiverStatusBox();
   renderChecklistGrid();
   renderChecklistPreview();
+  renderIntakeChecklistGrid();
 }
 
 function closeSheet(){
@@ -1962,6 +2014,54 @@ function renderChecklistPreview(){
   el.style.display = lines.length ? 'block' : 'none';
 }
 
+// Intake Checklist — same live-state pattern as the Service Checklist
+// (state object is the save-time source of truth, not the DOM), but a flat
+// list with no category narrowing, and never fed into The Fix block.
+let liveIntakeChecklistState = {};
+
+function renderIntakeChecklistGrid(){
+  const grid = document.getElementById('intakeChecklistGrid');
+  if(!grid) return;
+  grid.innerHTML = INTAKE_CHECKLIST_ITEMS.map(([key,label])=>{
+    const item = liveIntakeChecklistState[key] || {checked:false, note:''};
+    return `
+    <div class="checklist-row">
+      <label class="checklist-check">
+        <input type="checkbox" id="ic_${key}_checked" ${item.checked?'checked':''} onchange="onIntakeChecklistChange('${key}')">
+        <span>${label}</span>
+      </label>
+      <input type="text" id="ic_${key}_note" class="checklist-note" placeholder="note (optional)" value="${escapeHtml(item.note||'')}" oninput="onIntakeChecklistChange('${key}')">
+    </div>`;
+  }).join('');
+}
+
+function onIntakeChecklistChange(key){
+  const cb = document.getElementById('ic_'+key+'_checked');
+  const note = document.getElementById('ic_'+key+'_note');
+  liveIntakeChecklistState[key] = { checked: cb ? cb.checked : false, note: note ? note.value.trim() : '' };
+}
+
+// "Label - note" lines for checked intake items — used by the detail
+// drawer and search.
+function intakeChecklistLines(state){
+  return INTAKE_CHECKLIST_ITEMS
+    .filter(([key])=> state[key] && state[key].checked)
+    .map(([key,label])=> `${label} - ${(state[key].note||'').trim() || 'done'}`);
+}
+
+// Read-only auto line at the top of the Intake Checklist, computed from
+// draftPhotos — not stored, so it can never disagree with the actual photos.
+// Refreshed from renderDraftPhotoGrid(), which runs on every add/remove.
+function renderIntakePhotoStatus(){
+  const el = document.getElementById('intakePhotoStatus');
+  if(!el) return;
+  const n = draftPhotos.length;
+  el.classList.toggle('is-done', n > 0);
+  el.textContent = n > 0
+    ? `✓ Photos — ${n} attached`
+    : '○ Photos — none yet';
+}
+
 function triggerPhotoInput(){
   document.getElementById('hiddenPhotoInput').click();
 }
@@ -2036,6 +2136,7 @@ document.getElementById('hiddenLibraryInput').addEventListener('change', handleP
 async function renderDraftPhotoGrid(){
   const grid = document.getElementById('draftPhotoGrid');
   if(!grid) return;
+  renderIntakePhotoStatus();
   grid.innerHTML = '';
   for(const id of draftPhotos){
     const wrap = document.createElement('div');
@@ -2087,6 +2188,7 @@ async function saveEntry(){
     primaryComplaint: document.getElementById('f_primaryComplaint').value.trim(),
     customerRequest: document.getElementById('f_customerRequest').value.trim(),
     checklist: getChecklistState(),
+    intakeChecklist: {...liveIntakeChecklistState},
     waiver: draftWaiver
   };
 
@@ -2169,6 +2271,7 @@ function openDetail(id){
         entry.engineModel && (`<span class="mono" style="color:var(--muted);">Model/Type:</span> ` + escapeHtml(entry.engineModel)),
         entry.engineCode && (`<span class="mono" style="color:var(--muted);">Code:</span> ` + escapeHtml(entry.engineCode))
       ].filter(Boolean).join('<br>')}</p>` : ''}</div>` : ''}
+    ${intakeChecklistLines(entry.intakeChecklist||{}).length ? `<div class="detail-section"><div class="drawer-label">Intake Checklist</div><p>${intakeChecklistLines(entry.intakeChecklist||{}).map(escapeHtml).join('<br>')}</p></div>` : ''}
     ${entry.causes ? `<div class="detail-section"><div class="drawer-label">Likely Causes</div><p>${escapeHtml(entry.causes)}</p></div>` : ''}
     ${entry.steps ? `<div class="detail-section"><div class="drawer-label">Diagnostic Steps</div><p>${escapeHtml(entry.steps)}</p></div>` : ''}
     ${entry.title ? `<div class="detail-section"><div class="drawer-label">Diagnosis</div><p>${escapeHtml(entry.title)}</p></div>` : ''}
